@@ -1,0 +1,2962 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>RamyRay AI Studio X-Ray v3.0 — محطة الأشعة السينية الرقمية</title>
+<script src="https://unpkg.com/dicom-parser@1.8.21/dist/dicomParser.min.js"></script>
+<style>
+:root {
+    --bg: #060a12;
+    --bg-elev: #0e1626;
+    --panel: #131d32;
+    --panel-alt: #1c2942;
+    --border: #263754;
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --accent-dk: #0284c7;
+    --danger: #ef4444;
+    --warn: #f59e0b;
+    --ok: #22c55e;
+    --vp-bg: #000000;
+}
+body.light-theme {
+    --bg: #f1f5f9;
+    --bg-elev: #ffffff;
+    --panel: #ffffff;
+    --panel-alt: #e2e8f0;
+    --border: #cbd5e1;
+    --text: #0f172a;
+    --muted: #475569;
+    --accent: #0284c7;
+    --accent-dk: #0369a1;
+    --vp-bg: #090d16;
+}
+* { box-sizing: border-box; }
+html, body {
+    margin: 0; padding: 0; height: 100%;
+    font-family: 'Segoe UI', system-ui, -apple-system, Tahoma, Arial, sans-serif;
+    background: var(--bg); color: var(--text);
+    overflow-x: hidden;
+}
+
+/* HEADER */
+.topbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 7px 12px; background: var(--bg-elev);
+    border-bottom: 1px solid var(--border); flex-wrap: wrap;
+}
+.brand { display: flex; align-items: center; gap: 9px; }
+.brand-logo {
+    width: 34px; height: 34px; border-radius: 9px;
+    background: linear-gradient(135deg, #0284c7, #38bdf8);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 900; color: #fff; font-size: 15px; letter-spacing: 0.5px;
+    box-shadow: 0 2px 10px rgba(56,189,248,0.3); flex-shrink: 0;
+}
+.brand h1 { margin: 0; font-size: 14.5px; color: var(--accent); line-height: 1.2; }
+.brand small { display: block; font-size: 10.5px; color: var(--muted); }
+.top-actions { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+
+/* BUTTONS */
+.btn {
+    border: 1px solid var(--border); background: var(--panel-alt); color: var(--text);
+    padding: 5px 9px; border-radius: 7px; font-size: 11.5px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 4px; transition: 0.15s;
+    font-weight: 600; white-space: nowrap; flex-shrink: 0;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn.active { background: var(--accent-dk); border-color: var(--accent); color: #fff; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-primary { background: var(--accent-dk); border-color: var(--accent); color: #fff; }
+.btn-primary:hover { background: #0369a1; color: #fff; }
+.btn-danger { background: rgba(239,68,68,0.14); border-color: var(--danger); color: #fca5a5; }
+.btn-ok { background: rgba(34,197,94,0.14); border-color: var(--ok); color: #86efac; }
+.btn-warn { background: rgba(245,158,11,0.14); border-color: var(--warn); color: #fcd34d; }
+
+.zoom-pill {
+    font-family: Consolas, monospace; background: var(--bg);
+    border: 1px solid var(--accent); color: var(--accent);
+    padding: 4px 7px; border-radius: 6px; font-size: 11px; font-weight: 700;
+    min-width: 50px; text-align: center; cursor: pointer; flex-shrink: 0;
+}
+
+/* WORKSPACE LAYOUT */
+.workspace {
+    display: grid;
+    grid-template-columns: 225px 1fr 385px;
+    height: calc(100vh - 52px);
+    min-height: 580px;
+}
+@media (max-width: 1150px) {
+    .workspace { grid-template-columns: 1fr 355px; height: auto; }
+    .left-rail { grid-column: 1 / -1; max-height: 205px; border-left: none; border-right: none; border-bottom: 1px solid var(--border); }
+}
+@media (max-width: 840px) {
+    .workspace { grid-template-columns: 1fr; height: auto; }
+    .viewport-section { min-height: 58vh; }
+    .right-panel { border-inline-start: none; border-top: 1px solid var(--border); }
+}
+
+/* LEFT RAIL */
+.left-rail {
+    background: var(--bg-elev); border-inline-end: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden;
+}
+.rail-header { padding: 9px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+.dropzone {
+    border: 1.5px dashed var(--accent); border-radius: 9px; padding: 9px 7px;
+    text-align: center; cursor: pointer; background: rgba(56,189,248,0.05);
+    font-size: 11.5px; transition: 0.15s;
+}
+.dropzone:hover, .dropzone.dragover { background: rgba(56,189,248,0.16); }
+.import-row { display: flex; gap: 5px; }
+.import-row .btn { flex: 1; justify-content: center; font-size: 11px; padding: 5px; }
+.study-list { flex: 1; overflow-y: auto; padding: 7px; display: flex; flex-direction: column; gap: 6px; }
+.study-item {
+    display: flex; gap: 7px; align-items: center; padding: 6px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--panel); cursor: pointer;
+}
+.study-item.active { border-color: var(--accent); background: rgba(56,189,248,0.12); }
+.study-thumb {
+    width: 42px; height: 42px; border-radius: 5px; object-fit: cover;
+    background: #000; border: 1px solid #334155; flex-shrink: 0;
+}
+.study-meta { flex: 1; min-width: 0; font-size: 11px; }
+.study-meta b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.badge { display: inline-block; padding: 1px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 700; margin-top: 2px; }
+.badge-dicom { background: rgba(34,197,94,0.18); color: #4ade80; border: 1px solid #16a34a; }
+.badge-sec { background: rgba(245,158,11,0.18); color: #fbbf24; border: 1px solid #d97706; }
+.badge-crit { background: rgba(239,68,68,0.22); color: #fca5a5; border: 1px solid #ef4444; }
+.badge-urg { background: rgba(245,158,11,0.22); color: #fcd34d; border: 1px solid #f59e0b; }
+.badge-rout { background: rgba(34,197,94,0.2); color: #86efac; border: 1px solid #22c55e; }
+
+/* CENTER VIEWPORT */
+.viewport-section { display: flex; flex-direction: column; background: var(--vp-bg); position: relative; overflow: hidden; }
+.pacs-toolbar {
+    display: flex; align-items: center; gap: 4px; padding: 5px 7px;
+    background: var(--bg-elev); border-bottom: 1px solid var(--border);
+    overflow-x: auto; flex-wrap: nowrap; scrollbar-width: thin;
+}
+.tool-sep { width: 1px; height: 20px; background: var(--border); margin: 0 2px; flex-shrink: 0; }
+
+.canvas-wrap {
+    flex: 1; position: relative; overflow: hidden; background: #000;
+    display: flex; align-items: center; justify-content: center;
+    touch-action: none; user-select: none; -webkit-user-select: none;
+    overscroll-behavior: contain; min-height: 350px;
+}
+#viewCanvas { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+#viewCanvas.dragging { cursor: grabbing; }
+
+/* Non-overlapping Responsive HUD */
+.hud-layer {
+    position: absolute; inset: 0; pointer-events: none; z-index: 4;
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: 6px 8px; font-family: Consolas, monospace; font-size: 10.5px;
+    text-shadow: 0 1px 3px #000, 0 0 6px #000; direction: ltr;
+}
+.hud-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.hud-row.bottom { align-items: flex-end; }
+.hud-cell { max-width: 48%; overflow: hidden; text-overflow: ellipsis; line-height: 1.35; }
+.hud-cell.right { text-align: right; }
+@media (max-width: 520px) { .hud-layer { font-size: 9px; padding: 4px 6px; } }
+
+.empty-state { position: absolute; text-align: center; color: #64748b; padding: 20px; max-width: 440px; }
+.empty-state h2 { color: #38bdf8; margin: 0 0 8px; font-size: 18px; }
+
+.cine-bar {
+    display: flex; align-items: center; gap: 7px; padding: 5px 9px;
+    background: var(--bg-elev); border-top: 1px solid var(--border);
+    font-size: 11px; flex-wrap: wrap;
+}
+.cine-bar input[type="range"] { flex: 1; min-width: 90px; accent-color: var(--accent); }
+
+/* RIGHT PANEL */
+.right-panel {
+    background: var(--bg-elev); border-inline-start: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden;
+}
+.tabs {
+    display: flex; overflow-x: auto; background: var(--panel);
+    border-bottom: 1px solid var(--border); scrollbar-width: thin;
+}
+.tab-btn {
+    border: none; background: transparent; color: var(--muted);
+    padding: 8px 9px; font-size: 11px; font-weight: 700; cursor: pointer;
+    border-bottom: 2px solid transparent; white-space: nowrap; flex-shrink: 0;
+}
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); background: rgba(56,189,248,0.09); }
+.tab-body { flex: 1; overflow-y: auto; padding: 10px; display: none; }
+.tab-body.active { display: block; }
+
+.section-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 9px; padding: 9px; margin-bottom: 9px;
+}
+.section-card h4 {
+    margin: 0 0 7px; font-size: 12px; color: var(--accent);
+    display: flex; justify-content: space-between; align-items: center; gap: 6px;
+}
+label.field-lbl { display: block; font-size: 11px; color: var(--muted); margin: 5px 0 3px; font-weight: 600; }
+input[type="text"], input[type="password"], input[type="number"], input[type="color"], select, textarea {
+    width: 100%; padding: 6px 8px; border-radius: 7px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+    font-size: 12px; font-family: inherit;
+}
+input[type="color"] { height: 32px; padding: 2px; cursor: pointer; }
+textarea { resize: vertical; min-height: 70px; line-height: 1.45; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+
+.slider-group { margin-bottom: 7px; }
+.slider-head { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px; }
+.slider-group input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
+
+/* ANATOMY */
+.anatomy-svg-box {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 9px;
+    padding: 6px; text-align: center; margin-bottom: 7px;
+}
+.anatomy-svg-box svg { max-height: 195px; width: auto; }
+.body-zone { fill: rgba(56,189,248,0.16); stroke: #38bdf8; stroke-width: 1.4; cursor: pointer; transition: 0.15s; }
+.body-zone:hover { fill: rgba(56,189,248,0.42); }
+.body-zone.selected { fill: #0284c7; stroke: #ffffff; stroke-width: 2; }
+.anatomy-group-title { font-size: 10.5px; color: var(--accent); font-weight: 700; margin: 6px 0 3px; }
+.anatomy-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip {
+    font-size: 10px; padding: 3px 6px; border-radius: 5px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--bg); color: var(--muted);
+}
+.chip.selected { background: var(--accent-dk); color: #fff; border-color: var(--accent); }
+
+/* BANNERS & CARDS */
+.info-banner { font-size: 11px; background: rgba(56,189,248,0.08); border: 1px solid var(--border); color: var(--muted); border-radius: 8px; padding: 7px 9px; margin-bottom: 8px; line-height: 1.45; }
+.warn-banner { font-size: 11px; background: rgba(245,158,11,0.12); border: 1px solid #d97706; color: #fbbf24; border-radius: 8px; padding: 7px 9px; margin-bottom: 8px; line-height: 1.45; }
+.err-banner { font-size: 11px; background: rgba(239,68,68,0.14); border: 1px solid #ef4444; color: #fca5a5; border-radius: 8px; padding: 7px 9px; margin-bottom: 8px; line-height: 1.45; }
+.ok-banner { font-size: 11px; background: rgba(34,197,94,0.14); border: 1px solid #16a34a; color: #86efac; border-radius: 8px; padding: 7px 9px; margin-bottom: 8px; line-height: 1.45; }
+
+.finding-card {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px; margin-bottom: 7px; font-size: 11.5px;
+}
+.finding-card.accepted { border-color: var(--ok); background: rgba(34,197,94,0.07); }
+.finding-card.rejected { opacity: 0.45; border-color: var(--danger); text-decoration: line-through; }
+.finding-actions { display: flex; gap: 5px; margin-top: 6px; }
+.finding-actions .btn { flex: 1; justify-content: center; padding: 3px 5px; font-size: 10.5px; }
+
+.measure-item {
+    display: flex; justify-content: space-between; align-items: center; gap: 5px;
+    padding: 6px; border: 1px solid var(--border); border-radius: 7px;
+    background: var(--bg); margin-bottom: 5px; font-size: 11px; cursor: pointer;
+}
+.measure-item.selected { border-color: var(--accent); background: rgba(56,189,248,0.1); }
+
+/* MODALS */
+.modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 60;
+    display: none; align-items: center; justify-content: center; padding: 12px;
+}
+.modal-backdrop.open { display: flex; }
+.modal-box {
+    background: var(--bg-elev); border: 1px solid var(--border);
+    border-radius: 12px; max-width: 680px; width: 100%; max-height: 88vh;
+    overflow-y: auto; padding: 14px;
+}
+.audit-row { font-size: 10.5px; font-family: monospace; padding: 4px 0; border-bottom: 1px solid var(--border); direction: ltr; text-align: left; }
+.preview-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+@media (max-width: 560px) { .preview-pair { grid-template-columns: 1fr; } }
+.preview-pair img { width: 100%; max-height: 240px; object-fit: contain; background: #000; border: 1px solid var(--border); border-radius: 6px; }
+.qc-item { display: flex; align-items: center; gap: 6px; font-size: 11.5px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.ref-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+.ref-table th, .ref-table td { border: 1px solid var(--border); padding: 4px 5px; text-align: start; }
+.ref-table th { background: var(--panel-alt); color: var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- TOP BRANDING BAR -->
+<header class="topbar">
+    <div class="brand">
+        <div class="brand-logo">RR</div>
+        <div>
+            <h1>RamyRay AI Studio X-Ray <span style="font-size:10px;opacity:0.8;">v3.0</span></h1>
+            <small id="brandIdentitySubtitle">د. رامي صلاح — أخصائي أول أشعة تشخيصية | Digital Radiography Workstation</small>
+        </div>
+    </div>
+    <div class="top-actions">
+        <button class="btn" id="uiLangBtn">🌐 EN / عربي</button>
+        <button class="btn" id="themeBtn">🌗 <span data-i18n="theme">المظهر</span></button>
+        <button class="btn" id="fullscreenBtn" title="Fullscreen (F)">⛶</button>
+        <button class="btn btn-primary" id="openExportBtn">💾 <span data-i18n="export">تصدير احترافي</span></button>
+        <button class="btn" id="settingsBtn">⚙️ <span data-i18n="settings">الإعدادات</span></button>
+    </div>
+</header>
+
+<main class="workspace">
+    <!-- 1. LEFT RAIL: X-RAY STUDY IMPORT -->
+    <aside class="left-rail">
+        <div class="rail-header">
+            <label class="dropzone" id="dropzone" for="fileInput">
+                📁 <b data-i18n="importTitle">استيراد صور X-Ray أو DICOM</b><br>
+                <span style="color:var(--muted);" data-i18n="importSub">اسحب (.dcm, PNG, JPG, TIFF) أو اضغط</span>
+                <input type="file" id="fileInput" multiple accept=".dcm,application/dicom,image/*" style="display:none;">
+            </label>
+            <div class="import-row">
+                <label class="btn" for="cameraInput">📷 <span data-i18n="camera">تصوير شاشة</span><input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;"></label>
+                <button class="btn" id="clearStudiesBtn">🗑 <span data-i18n="clear">مسح</span></button>
+            </div>
+        </div>
+        <div class="study-list" id="studyList">
+            <div style="text-align:center;font-size:11px;color:var(--muted);padding:14px 6px;" data-i18n="emptyStudies">
+                لا توجد صور أشعة محمّلة بعد.
+            </div>
+        </div>
+    </aside>
+
+    <!-- 2. CENTER: PRIMARY X-RAY VIEWPORT -->
+    <section class="viewport-section" id="viewportSection">
+        <div class="pacs-toolbar">
+            <button class="btn active" data-tool="pan" title="Hand / Pan (P)">✋ <span data-i18n="pan">تحريك</span></button>
+            <button class="btn" data-tool="select" title="Select / Move ROI (S)">👆 <span data-i18n="select">تحديد ROI</span></button>
+            <button class="btn" data-tool="wl" title="Window/Level (W)">🌗 WW/WL</button>
+            <div class="tool-sep"></div>
+
+            <!-- Zoom Controls -->
+            <button class="btn" id="zoomOutBtn" title="Zoom Out (-)">➖</button>
+            <span class="zoom-pill" id="zoomIndicator" title="Click to Fit">100%</span>
+            <button class="btn" id="zoomInBtn" title="Zoom In (+)">➕</button>
+            <button class="btn" id="fitScreenBtn" title="Fit to Screen (0)">⛶ Fit</button>
+            <button class="btn" id="actualSizeBtn" title="Actual Pixel Size (1)">1:1</button>
+            <button class="btn" id="resetZoomBtn" title="Reset Zoom/Pan">↺</button>
+            <div class="tool-sep"></div>
+
+            <!-- X-Ray Measurement & Privacy Tools -->
+            <button class="btn" data-tool="dist" title="Distance (M)">📏 مسافة</button>
+            <button class="btn" data-tool="angle" title="Angle (A)">📐 زاوية</button>
+            <button class="btn" data-tool="cobb" title="Scoliosis Cobb Angle">🦴 Cobb</button>
+            <button class="btn" data-tool="ctr" title="Cardiothoracic Ratio (CTR)">❤️ CTR</button>
+            <button class="btn" data-tool="roi_rect" title="Rectangle ROI">▭ ROI</button>
+            <button class="btn" data-tool="roi_ellipse" title="Elliptical ROI">◯ ROI</button>
+            <button class="btn" data-tool="arrow" title="Arrow Annotation">↗️ سهم</button>
+            <button class="btn" data-tool="calibrate" title="Manual Calibration">📐 معايرة</button>
+            <button class="btn btn-warn" data-tool="mask" title="Blackout Patient Name/PHI">⬛ إخفاء PHI</button>
+            <div class="tool-sep"></div>
+
+            <!-- Geometry & Visibility -->
+            <button class="btn" id="invertQuickBtn" title="Invert (I)">🔄 عكس</button>
+            <button class="btn" id="rotLeftBtn" title="Rotate 90°">↺ 90°</button>
+            <button class="btn" id="flipHBtn" title="Flip Horizontal">⇄</button>
+            <button class="btn" id="flipVBtn" title="Flip Vertical">⇅</button>
+            <button class="btn" id="undoBtn" title="Undo (Ctrl+Z)">↩️</button>
+            <button class="btn" id="redoBtn" title="Redo (Ctrl+Y)">↪️</button>
+            <button class="btn" id="resetViewBtn" title="Reset All (R)">♻️</button>
+            <div class="tool-sep"></div>
+
+            <!-- Comparison & Overlay Toggles -->
+            <button class="btn" id="splitCompareBtn" title="Before/After Slider">🌓 قبل/بعد</button>
+            <button class="btn" id="sideBySideBtn" title="Side-by-Side Comparison">🪟 مقارنة</button>
+            <button class="btn active" id="toggleAnnotBtn" title="Show/Hide All Annotations">👁️ قياسات</button>
+            <button class="btn active" id="toggleLabelsBtn" title="Show/Hide Measurement Labels">🏷️ تسميات</button>
+            <button class="btn" id="toggleWmPreviewBtn" title="Preview Watermark Live">💧 علامة مائية</button>
+        </div>
+
+        <div class="canvas-wrap" id="canvasWrap">
+            <canvas id="viewCanvas"></canvas>
+            <div class="hud-layer">
+                <div class="hud-row top">
+                    <div class="hud-cell" id="hudTL"></div>
+                    <div class="hud-cell right" id="hudTR"></div>
+                </div>
+                <div class="hud-row bottom">
+                    <div class="hud-cell" id="hudBL" style="color:#cbd5e1;"></div>
+                    <div class="hud-cell right" id="hudBR" style="color:#fbbf24;"></div>
+                </div>
+            </div>
+            <div class="empty-state" id="emptyState">
+                <h2>🩻 RamyRay AI Studio X-Ray v3.0</h2>
+                <p style="font-size:12.5px;">محطة عمل متخصصة حصرياً للأشعة السينية الرقمية والتقليدية (DR / CR / DICOM X-Ray).<br><br>
+                <span style="font-size:11px;color:#94a3b8;">حفظ كامل للدقة الأصلية • معالجة غير تدميرية • علامة مائية احترافية • تصدير PNG/TIFF/JPEG/DICOM-SC</span></p>
+            </div>
+        </div>
+
+        <div class="cine-bar">
+            <button class="btn" id="prevImgBtn" disabled>◀</button>
+            <span id="sliceLabel">الصورة: 0 / 0</span>
+            <button class="btn" id="nextImgBtn" disabled>▶</button>
+            <input type="range" id="sliceSlider" min="0" max="0" value="0" disabled>
+            <span id="splitCtrlWrap" style="display:none;align-items:center;gap:4px;">
+                مقسم: <input type="range" id="splitSlider" min="5" max="95" value="50" style="width:85px;">
+            </span>
+            <span id="compareSelectWrap" style="display:none;align-items:center;gap:4px;">
+                مقارنة مع: <select id="compareSelect" style="width:125px;padding:3px;"></select>
+            </span>
+        </div>
+    </section>
+
+    <!-- 3. RIGHT INSPECTOR PANEL (9 DEDICATED X-RAY MODULES) -->
+    <aside class="right-panel">
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="tab-anatomy">🧍 التشريح</button>
+            <button class="tab-btn" data-tab="tab-pos">📐 الوضعية</button>
+            <button class="tab-btn" data-tab="tab-proc">🎛 المعالجة</button>
+            <button class="tab-btn" data-tab="tab-meas">📏 القياس</button>
+            <button class="tab-btn" data-tab="tab-ai">🧠 AI</button>
+            <button class="tab-btn" data-tab="tab-qc">✅ الجودة</button>
+            <button class="tab-btn" data-tab="tab-report">📋 التقرير</button>
+            <button class="tab-btn" data-tab="tab-wm">💧 العلامة</button>
+            <button class="tab-btn" data-tab="tab-ref">📚 مراجع</button>
+        </div>
+
+        <!-- TAB 1: X-RAY ANATOMY SELECTOR -->
+        <div class="tab-body active" id="tab-anatomy">
+            <div class="section-card">
+                <h4>
+                    <span>محدد تشريح الأشعة السينية (X-Ray Anatomy)</span>
+                    <button class="btn" id="bodyViewToggle" style="padding:2px 6px;font-size:10px;">أمامي / خلفي</button>
+                </h4>
+                <div class="anatomy-svg-box">
+                    <div id="bodyViewLabel" style="font-size:10px;color:var(--accent);margin-bottom:3px;">المنظور الأمامي (Anterior View)</div>
+                    <svg viewBox="0 0 200 420" xmlns="http://www.w3.org/2000/svg">
+                        <circle class="body-zone" data-part="Skull" cx="100" cy="30" r="20"/>
+                        <rect class="body-zone" data-part="Facial Bones" x="87" y="38" width="26" height="14" rx="4"/>
+                        <rect class="body-zone" data-part="Cervical Spine" x="92" y="55" width="16" height="20" rx="4"/>
+                        <circle class="body-zone" data-part="Shoulder" data-side="RT" cx="62" cy="90" r="14"/>
+                        <circle class="body-zone" data-part="Shoulder" data-side="LT" cx="138" cy="90" r="14"/>
+                        <rect class="body-zone selected" data-part="Chest" x="72" y="80" width="56" height="62" rx="12"/>
+                        <rect class="body-zone" data-part="Thoracic Spine" x="94" y="82" width="12" height="58" rx="4"/>
+                        <rect class="body-zone" data-part="Humerus" data-side="RT" x="45" y="104" width="18" height="46" rx="7"/>
+                        <rect class="body-zone" data-part="Humerus" data-side="LT" x="137" y="104" width="18" height="46" rx="7"/>
+                        <circle class="body-zone" data-part="Elbow" data-side="RT" cx="52" cy="158" r="10"/>
+                        <circle class="body-zone" data-part="Elbow" data-side="LT" cx="148" cy="158" r="10"/>
+                        <rect class="body-zone" data-part="Abdomen" x="74" y="144" width="52" height="44" rx="8"/>
+                        <rect class="body-zone" data-part="Lumbar Spine" x="94" y="146" width="12" height="42" rx="4"/>
+                        <rect class="body-zone" data-part="Forearm" data-side="RT" x="42" y="170" width="15" height="32" rx="6"/>
+                        <rect class="body-zone" data-part="Forearm" data-side="LT" x="143" y="170" width="15" height="32" rx="6"/>
+                        <circle class="body-zone" data-part="Wrist" data-side="RT" cx="49" cy="206" r="7"/>
+                        <circle class="body-zone" data-part="Wrist" data-side="LT" cx="151" cy="206" r="7"/>
+                        <ellipse class="body-zone" data-part="Hand" data-side="RT" cx="48" cy="224" rx="10" ry="13"/>
+                        <ellipse class="body-zone" data-part="Hand" data-side="LT" cx="152" cy="224" rx="10" ry="13"/>
+                        <rect class="body-zone" data-part="Pelvis" x="72" y="190" width="56" height="34" rx="10"/>
+                        <circle class="body-zone" data-part="Hip" data-side="RT" cx="74" cy="222" r="12"/>
+                        <circle class="body-zone" data-part="Hip" data-side="LT" cx="126" cy="222" r="12"/>
+                        <rect class="body-zone" data-part="Femur" data-side="RT" x="67" y="235" width="24" height="58" rx="9"/>
+                        <rect class="body-zone" data-part="Femur" data-side="LT" x="109" y="235" width="24" height="58" rx="9"/>
+                        <circle class="body-zone" data-part="Knee" data-side="RT" cx="79" cy="303" r="12"/>
+                        <circle class="body-zone" data-part="Knee" data-side="LT" cx="121" cy="303" r="12"/>
+                        <rect class="body-zone" data-part="Tibia" data-side="RT" x="69" y="316" width="20" height="58" rx="8"/>
+                        <rect class="body-zone" data-part="Tibia" data-side="LT" x="111" y="316" width="20" height="58" rx="8"/>
+                        <circle class="body-zone" data-part="Ankle" data-side="RT" cx="79" cy="382" r="9"/>
+                        <circle class="body-zone" data-part="Ankle" data-side="LT" cx="121" cy="382" r="9"/>
+                        <ellipse class="body-zone" data-part="Foot" data-side="RT" cx="75" cy="402" rx="14" ry="8"/>
+                        <ellipse class="body-zone" data-part="Foot" data-side="LT" cx="125" cy="402" rx="14" ry="8"/>
+                    </svg>
+                </div>
+                <div class="grid-2" style="margin-bottom:6px;">
+                    <div>
+                        <label class="field-lbl">نوع الأشعة (X-Ray Source)</label>
+                        <select id="modalitySelect">
+                            <option value="DX">Digital Radiography (DR)</option>
+                            <option value="CR">Computed Radiography (CR)</option>
+                            <option value="XR">Conventional X-Ray</option>
+                            <option value="PORT">Portable / Mobile X-Ray</option>
+                            <option value="ANALOG">Digitized Analog X-Ray</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="field-lbl">الفئة العمرية</label>
+                        <select id="profileSelect">
+                            <option value="Adult">بالغ (Adult)</option>
+                            <option value="Pediatric">أطفال (Pediatric)</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="anatomyGroupedChips"></div>
+            </div>
+        </div>
+
+        <!-- TAB 2: POSITIONING, PROJECTION & MARKERS -->
+        <div class="tab-body" id="tab-pos">
+            <div class="section-card">
+                <h4>الوضعية التشريحية والإسقاط (Positioning & Projection)</h4>
+                <div class="grid-2">
+                    <div>
+                        <label class="field-lbl">الإسقاط (Projection)</label>
+                        <select id="projectionSelect">
+                            <option value="Unspecified">غير محدد (يدوي)</option>
+                            <option value="PA">PA</option>
+                            <option value="AP">AP</option>
+                            <option value="Lateral">Lateral</option>
+                            <option value="Oblique">Oblique</option>
+                            <option value="AP Axial">AP Axial</option>
+                            <option value="PA Axial">PA Axial</option>
+                            <option value="Weight-Bearing">AP/PA Weight-Bearing</option>
+                            <option value="RPO">RPO</option>
+                            <option value="LPO">LPO</option>
+                            <option value="RAO">RAO</option>
+                            <option value="LAO">LAO</option>
+                            <option value="Tangential">Tangential / Skyline</option>
+                            <option value="Mortise">Ankle Mortise</option>
+                            <option value="Swimmers">Swimmer's Lateral</option>
+                            <option value="Odontoid">Open-Mouth Odontoid</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="field-lbl">وضعية المريض (Position)</label>
+                        <select id="positionSelect">
+                            <option value="Unspecified">غير محدد</option>
+                            <option value="Erect">Erect (واقف)</option>
+                            <option value="Supine">Supine (مستلقٍ على الظهر)</option>
+                            <option value="Prone">Prone (مستلقٍ على البطن)</option>
+                            <option value="Sitting">Sitting (جالس)</option>
+                            <option value="Standing">Standing</option>
+                            <option value="Decubitus">Lateral Decubitus</option>
+                            <option value="Recumbent">Recumbent</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="field-lbl">الجانب (Laterality)</label>
+                        <select id="sideSelect">
+                            <option value="N/A">Not Applicable (وسطي)</option>
+                            <option value="RT">Right (RT)</option>
+                            <option value="LT">Left (LT)</option>
+                            <option value="Bilateral">Bilateral (ثنائي)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="field-lbl">علامة الصورة (Image Marker)</label>
+                        <select id="markerSelect">
+                            <option value="">بدون علامة إضافية</option>
+                            <option value="R">R</option>
+                            <option value="L">L</option>
+                            <option value="AP">AP</option>
+                            <option value="PA">PA</option>
+                            <option value="LAT">LAT</option>
+                            <option value="ERECT">ERECT</option>
+                            <option value="SUPINE">SUPINE</option>
+                            <option value="RPO">RPO</option>
+                            <option value="LPO">LPO</option>
+                            <option value="RAO">RAO</option>
+                            <option value="LAO">LAO</option>
+                        </select>
+                    </div>
+                </div>
+                <label class="field-lbl">الداعي السريري (Clinical Indication)</label>
+                <input type="text" id="clinicalIndication" placeholder="مثال: ألم كاحل بعد التواء، اشتباه كسر، كحة مزمنة...">
+                <div class="info-banner" style="margin-top:8px;margin-bottom:0;">
+                    ℹ️ تبقى حقول الإسقاط ووضعية المريض والجانب والعلامة مستقلة بالكامل ولا يتم تعديل بيانات DICOM الأصلية تلقائياً.
+                </div>
+            </div>
+
+            <div class="section-card">
+                <h4>بيانات DICOM المقروءة (Read-Only Metadata)</h4>
+                <div id="dicomMetaViewer" style="font-size:11px;font-family:Consolas,monospace;direction:ltr;text-align:left;color:var(--muted);">
+                    No DICOM loaded.
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: ADVANCED X-RAY IMAGE PROCESSING -->
+        <div class="tab-body" id="tab-proc">
+            <div class="section-card">
+                <h4>قوالب معالجة الأشعة السينية (X-Ray Presets)</h4>
+                <div class="grid-3">
+                    <button class="btn" data-preset="default">افتراضي</button>
+                    <button class="btn" data-preset="chest">صدر Chest</button>
+                    <button class="btn" data-preset="abdomen">بطن Abd</button>
+                    <button class="btn" data-preset="spine">عمود Spine</button>
+                    <button class="btn" data-preset="extremity">عظام Bone</button>
+                    <button class="btn" data-preset="skull">جمجمة Skull</button>
+                </div>
+                <div style="display:flex;gap:5px;margin-top:6px;">
+                    <button class="btn" id="saveCustomPresetBtn" style="flex:1;justify-content:center;">💾 حفظ إعداداتي</button>
+                    <button class="btn" id="loadCustomPresetBtn" style="flex:1;justify-content:center;">📂 استعادة إعداداتي</button>
+                </div>
+            </div>
+
+            <div class="section-card">
+                <h4>النوافذ والتباين (Non-Destructive)</h4>
+                <div class="slider-group"><div class="slider-head"><span>Window Level (WL)</span><span id="valWL">128</span></div><input type="range" id="slWL" min="0" max="255" value="128"></div>
+                <div class="slider-group"><div class="slider-head"><span>Window Width (WW)</span><span id="valWW">256</span></div><input type="range" id="slWW" min="10" max="512" value="256"></div>
+                <div class="slider-group"><div class="slider-head"><span>السطوع (Brightness)</span><span id="valBright">0</span></div><input type="range" id="slBright" min="-100" max="100" value="0"></div>
+                <div class="slider-group"><div class="slider-head"><span>التباين (Contrast)</span><span id="valContrast">100%</span></div><input type="range" id="slContrast" min="30" max="250" value="100"></div>
+                <div class="slider-group"><div class="slider-head"><span>التعريض (Exposure)</span><span id="valExp">0%</span></div><input type="range" id="slExp" min="-50" max="50" value="0"></div>
+                <div class="slider-group"><div class="slider-head"><span>جاما (Gamma)</span><span id="valGamma">1.00</span></div><input type="range" id="slGamma" min="30" max="250" value="100"></div>
+                <div class="slider-group"><div class="slider-head"><span>توضيح الحواف (Sharpen/Edge)</span><span id="valSharpen">0%</span></div><input type="range" id="slSharpen" min="0" max="100" value="0"></div>
+                <div class="slider-group"><div class="slider-head"><span>تقليل الضوضاء / Moiré</span><span id="valDenoise">0%</span></div><input type="range" id="slDenoise" min="0" max="100" value="0"></div>
+                <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px;">
+                    <button class="btn" id="btnClahe">✨ CLAHE</button>
+                    <button class="btn" id="btnHistEq">📊 Hist Eq</button>
+                    <button class="btn" id="btnNorm">⚖️ Normalize</button>
+                    <button class="btn" id="btnGray">⬜ Grayscale</button>
+                </div>
+            </div>
+
+            <div class="section-card">
+                <h4>📷 معالجة تصوير الشاشات (Secondary Capture)</h4>
+                <div class="slider-group"><div class="slider-head"><span>تقليل الوهج والانعكاس (Glare)</span><span id="valGlare">0%</span></div><input type="range" id="slGlare" min="0" max="100" value="0"></div>
+                <div class="slider-group"><div class="slider-head"><span>تعديل الميل (Deskew)</span><span id="valDeskew">0°</span></div><input type="range" id="slDeskew" min="-20" max="20" value="0" step="0.5"></div>
+                <div class="slider-group"><div class="slider-head"><span>تنظيف الحواف (Border Crop %)</span><span id="valBorder">0%</span></div><input type="range" id="slBorder" min="0" max="18" value="0"></div>
+                <div class="warn-banner" style="margin-top:6px;margin-bottom:0;">
+                    ⚠️ صور الكاميرا ولقطات الشاشة (Secondary Capture) تفقد المعايرة الأصلية؛ المعالجة لتحسين الرؤية فقط ولا تعيد البيانات الخام.
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: MEASUREMENTS, ROI, CTR, COBB & CALIBRATION -->
+        <div class="tab-body" id="tab-meas">
+            <div class="section-card">
+                <h4>معايرة القياسات (Spatial Calibration)</h4>
+                <div id="calibStatusBox" class="info-banner" style="margin-bottom:6px;">
+                    الحالة: غير مُعاير (القياسات بالبكسل `px` فقط).
+                </div>
+                <div style="display:flex;gap:5px;">
+                    <button class="btn" id="startCalibBtn" style="flex:1;justify-content:center;">📐 معايرة يدوية بجسم مرجعي</button>
+                    <button class="btn" id="resetCalibBtn">↺</button>
+                </div>
+            </div>
+
+            <div class="section-card">
+                <h4>إدارة القياسات والـ ROI (بدون تداخل)</h4>
+                <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:7px;">
+                    <button class="btn btn-danger" id="delSelectedMeasBtn">🗑 حذف المحدد</button>
+                    <button class="btn" id="undoLastMeasBtn">↩️ تراجع آخر قياس</button>
+                    <button class="btn" id="clearMeasureBtn">🧹 مسح الكل</button>
+                </div>
+                <div id="selectedRoiDetail" class="info-banner" style="display:none;"></div>
+                <div id="measureList" style="font-size:11.5px;color:var(--muted);">
+                    لا توجد قياسات بعد. استخدم أدوات الشريط العلوي (مسافة، زاوية، Cobb، CTR، ROI، أو إخفاء PHI).
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 5: REPAIRED X-RAY AI ANALYSIS -->
+        <div class="tab-body" id="tab-ai">
+            <div class="warn-banner">
+                <b>⚠️ شفافية وحدود الذكاء الاصطناعي:</b><br>
+                الاتصال عبر المتصفح يستخدم محرك رؤية لغوي متعدد الوسائط (VLM) عبر Gemini API كأداة <b>دعم قرار ومراجعة أولية فقط</b>، وليس نموذجاً طبياً متخصصاً معتمداً (FDA/CE) ولا يولّد خرائط حرارية أو نسب ثقة وهمية. لتشغيل نماذج X-Ray متخصصة (PyTorch / MONAI / TorchXRayVision) استخدم خادم FastAPI خارجي في الإعدادات.
+            </div>
+
+            <div class="section-card">
+                <h4>اختيار المحرك وفحص الاتصال الحقيقي</h4>
+                <label class="field-lbl">النموذج المُتحقَّق منه (Verified API Model)</label>
+                <div style="display:flex;gap:5px;margin-bottom:6px;">
+                    <select id="aiModelSelect" style="flex:1;">
+                        <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                        <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+                        <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+                        <option value="gemini-3.8-flash">gemini-3.8-flash</option>
+                    </select>
+                    <button class="btn" id="testApiBtn" title="فحص المفتاح وجلب النماذج المتاحة فعلياً">🔍 فحص النماذج</button>
+                </div>
+                <div id="apiTestResult" style="font-size:11px;margin-bottom:6px;"></div>
+
+                <label class="field-lbl">لغة التقرير التشخيصي المساعد</label>
+                <select id="aiLangSelect" style="margin-bottom:7px;">
+                    <option value="ar">العربية + المصطلحات الطبية الإنجليزية</option>
+                    <option value="en">Formal Clinical English</option>
+                </select>
+
+                <label style="display:flex;align-items:flex-start;gap:6px;font-size:11px;color:var(--warn);margin-bottom:8px;cursor:pointer;">
+                    <input type="checkbox" id="phiConfirmCheck">
+                    <span>أؤكد إزالة/تغطية بيانات المريض الشخصية (PHI) قبل إرسال الصورة للخدمة الخارجية.</span>
+                </label>
+
+                <div style="display:flex;gap:5px;">
+                    <button class="btn btn-primary" id="runAiBtn" style="flex:1;justify-content:center;padding:9px;">🧠 بدء تحليل الأشعة</button>
+                    <button class="btn btn-danger" id="cancelAiBtn" style="display:none;padding:9px;">✕ إلغاء</button>
+                </div>
+            </div>
+
+            <div id="aiStatusBox"></div>
+            <div id="aiResultsContainer">
+                <div style="text-align:center;color:var(--muted);font-size:11.5px;padding:14px 6px;">
+                    اضغط أولاً على <b>"🔍 فحص النماذج"</b> للتأكد من صلاحية المفتاح والنموذج المتاح على حسابك، ثم ابدأ التحليل.
+                </div>
+            </div>
+
+            <div class="section-card" id="aiHistoryCard" style="display:none;">
+                <h4>سجل التحليلات (Analysis History)</h4>
+                <div id="aiHistoryList" style="font-size:11px;"></div>
+            </div>
+        </div>
+
+        <!-- TAB 6: RADIOGRAPHIC QUALITY CONTROL (QC) -->
+        <div class="tab-body" id="tab-qc">
+            <div class="section-card">
+                <h4>التقييم الآلي المساعد للصورة (Technical Heuristics)</h4>
+                <div id="qcAutoBox" style="font-size:11.5px;color:var(--muted);">ارفع صورة أشعة لإجراء فحص مؤشرات الحدة والتباين والتعريض الأولي.</div>
+                <div style="font-size:10px;color:var(--muted);margin-top:5px;">
+                    * ملاحظة: لقطات الشاشة تفتقر لبيانات مؤشر التعريض (Exposure Index / S-Number) لذا تُعرض المؤشرات البصرية كتقدير تعليمي فقط.
+                </div>
+            </div>
+
+            <div class="section-card">
+                <h4>قائمة تدقيق الجودة السريرية (<span id="qcRegionTitle">Chest</span>)</h4>
+                <div id="qcChecklistBox"></div>
+                <button class="btn" id="copyQcBtn" style="width:100%;justify-content:center;margin-top:7px;">📋 نسخ ملخص الجودة للتقرير</button>
+            </div>
+        </div>
+
+        <!-- TAB 7: X-RAY REPORTING (18 TEMPLATES) -->
+        <div class="tab-body" id="tab-report">
+            <div class="section-card">
+                <h4>قوالب تقارير الأشعة السينية (18 قالباً)</h4>
+                <div style="display:flex;gap:5px;margin-bottom:6px;">
+                    <select id="templateSelect" style="flex:1;"></select>
+                    <button class="btn" id="applyTemplateBtn">تطبيق</button>
+                </div>
+                <button class="btn btn-ok" id="pullAcceptedBtn" style="width:100%;justify-content:center;">📥 إدراج الملاحظات المقبولة من AI</button>
+            </div>
+
+            <div class="section-card">
+                <label class="field-lbl">بيانات الفحص (De-identified Exam)</label>
+                <input type="text" id="repExamInfo">
+                <label class="field-lbl">الداعي السريري (Clinical Indication)</label>
+                <input type="text" id="repIndication">
+                <label class="field-lbl">التقنية والوضعية (Technique)</label>
+                <textarea id="repTechnique" style="min-height:45px;"></textarea>
+                <label class="field-lbl">الملاحظات التشخيصية (Findings)</label>
+                <textarea id="repFindings" style="min-height:105px;"></textarea>
+                <label class="field-lbl">الخلاصة (Impression)</label>
+                <textarea id="repImpression" style="min-height:60px;"></textarea>
+                <label class="field-lbl">التوصيات (Recommendations)</label>
+                <textarea id="repRecs" style="min-height:45px;"></textarea>
+
+                <label style="display:flex;align-items:center;gap:6px;margin-top:7px;font-size:11px;color:var(--warn);cursor:pointer;">
+                    <input type="checkbox" id="signOffCheck">
+                    <span>أقر كمُراجِع مختص باعتماد هذا التقرير (د. رامي صلاح — أخصائي أول أشعة تشخيصية).</span>
+                </label>
+
+                <div style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap;">
+                    <button class="btn btn-primary" id="printReportBtn" style="flex:1;justify-content:center;">🖨 طباعة / PDF</button>
+                    <button class="btn" id="copyReportBtn">📋 نسخ</button>
+                    <button class="btn" id="downloadReportBtn">⬇️ TXT</button>
+                    <button class="btn" id="saveDraftBtn">💾 حفظ مسودة</button>
+                </div>
+            </div>
+            <div class="section-card" id="reportHistoryCard" style="display:none;">
+                <h4>مسودات التقارير المحفوظة</h4>
+                <div id="reportHistoryList" style="font-size:11px;"></div>
+            </div>
+        </div>
+
+        <!-- TAB 8: PROFESSIONAL WATERMARK SETTINGS -->
+        <div class="tab-body" id="tab-wm">
+            <div class="section-card">
+                <h4>💧 إعدادات العلامة المائية الاحترافية</h4>
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:8px;cursor:pointer;">
+                    <input type="checkbox" id="wmEnableCheck" checked>
+                    <span><b>تفعيل العلامة المائية عند التصدير</b></span>
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:11.5px;margin-bottom:8px;cursor:pointer;">
+                    <input type="checkbox" id="wmLogoCheck" checked>
+                    <span>إظهار شعار RR بجانب الاسم</span>
+                </label>
+
+                <div class="grid-2">
+                    <div>
+                        <label class="field-lbl">الصيغة (Format)</label>
+                        <select id="wmFormatSelect">
+                            <option value="ar">العربية (د. رامي صلاح)</option>
+                            <option value="en">English (Dr. Ramy Salah)</option>
+                            <option value="both">ثنائي اللغة (عربي + English)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="field-lbl">الموضع (Position)</label>
+                        <select id="wmPosSelect">
+                            <option value="br">أسفل اليمين (Bottom Right)</option>
+                            <option value="bl">أسفل اليسار (Bottom Left)</option>
+                            <option value="tr">أعلى اليمين (Top Right)</option>
+                            <option value="tl">أعلى اليسار (Top Left)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid-2" style="margin-top:6px;">
+                    <div>
+                        <label class="field-lbl">اللون (Text Color)</label>
+                        <input type="color" id="wmColorInput" value="#38bdf8">
+                    </div>
+                    <div>
+                        <label class="field-lbl">حجم الخط (<span id="wmSizeVal">20</span>px)</label>
+                        <input type="range" id="wmSizeSlider" min="12" max="42" value="20">
+                    </div>
+                </div>
+
+                <div class="slider-group" style="margin-top:6px;">
+                    <div class="slider-head"><span>الشفافية (Opacity)</span><span id="wmOpacityVal">75%</span></div>
+                    <input type="range" id="wmOpacitySlider" min="15" max="100" value="75">
+                </div>
+
+                <div style="display:flex;gap:5px;margin-top:8px;">
+                    <button class="btn btn-primary" id="saveWmBtn" style="flex:1;justify-content:center;">💾 حفظ تفضيلات العلامة</button>
+                    <button class="btn" id="previewWmInlineBtn">👁️ معاينة حية</button>
+                </div>
+                <div class="info-banner" style="margin-top:8px;margin-bottom:0;">
+                    🔒 لا يتم تعديل الصورة الأصلية أو ملف DICOM الأصلي إطلاقاً؛ تُطبَّق العلامة المائية فقط على النسخ المُصدَّرة عند تفعيلها.
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 9: X-RAY EXPOSURE & POSITIONING REFERENCE -->
+        <div class="tab-body" id="tab-ref">
+            <div class="section-card">
+                <h4>📚 دليل الوضعيات السريري (Positioning Guide)</h4>
+                <div id="posGuideContent" style="font-size:11.5px;line-height:1.55;"></div>
+            </div>
+            <div class="section-card">
+                <h4>⚡ مرجع عوامل التعريض التعليمي (Educational Reference)</h4>
+                <div class="warn-banner" style="margin-bottom:6px;">
+                    مرجع تعليمي للبالغين ذوي الحجم المتوسط فقط — يختلف حسب الجهاز والـ AEC والـ SID وكتلة المريض.
+                </div>
+                <table class="ref-table">
+                    <thead><tr><th>الفحص</th><th>kVp</th><th>mAs</th><th>SID / Grid</th></tr></thead>
+                    <tbody>
+                        <tr><td>Chest PA</td><td>110–125</td><td>2–5</td><td>180cm / Grid</td></tr>
+                        <tr><td>Abdomen AP</td><td>75–85</td><td>20–40</td><td>100cm / Grid</td></tr>
+                        <tr><td>C-Spine AP/Lat</td><td>70–80</td><td>10–20</td><td>100–180cm</td></tr>
+                        <tr><td>L-Spine AP/Lat</td><td>75–90</td><td>30–60</td><td>100cm / Grid</td></tr>
+                        <tr><td>Pelvis AP</td><td>75–85</td><td>25–40</td><td>100cm / Grid</td></tr>
+                        <tr><td>Knee / Ankle</td><td>58–66</td><td>4–8</td><td>100cm / No Grid</td></tr>
+                        <tr><td>Hand / Wrist</td><td>50–58</td><td>2–4</td><td>100cm / No Grid</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </aside>
+</main>
+
+<!-- HIGH-QUALITY EXPORT MODAL -->
+<div class="modal-backdrop" id="exportModal">
+    <div class="modal-box">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <h3 style="margin:0;color:var(--accent);font-size:15px;">💾 مركز التصدير الاحترافي عالي الجودة (Native Resolution)</h3>
+            <button class="btn" id="closeExportBtn">✕</button>
+        </div>
+
+        <div class="grid-2">
+            <div class="section-card">
+                <h4>التنسيق والجودة</h4>
+                <label class="field-lbl">صيغة الملف (Format)</label>
+                <select id="expFormatSelect">
+                    <option value="png">PNG Lossless (دقة كاملة بدون فقدان)</option>
+                    <option value="tiff">TIFF Lossless (Uncompressed RGB 24-bit)</option>
+                    <option value="jpeg">JPEG (جودة عالية قابلة للضبط)</option>
+                    <option value="dcm">DICOM Secondary Capture (.dcm — DERIVED)</option>
+                </select>
+                <div id="expJpegWrap" style="display:none;margin-top:6px;">
+                    <div class="slider-head"><span>جودة JPEG</span><span id="expJpegVal">96%</span></div>
+                    <input type="range" id="expJpegSlider" min="60" max="100" value="96" style="width:100%;">
+                </div>
+                <label class="field-lbl">مصدر الصورة</label>
+                <select id="expSourceSelect">
+                    <option value="processed">الصورة المعالجة (Processed — Full Native Res)</option>
+                    <option value="original">الصورة الأصلية الخام (Original Unprocessed)</option>
+                </select>
+            </div>
+
+            <div class="section-card">
+                <h4>طبقات التصدير والخصوصية</h4>
+                <label style="display:flex;align-items:center;gap:6px;font-size:11.5px;margin-bottom:6px;cursor:pointer;">
+                    <input type="checkbox" id="expIncWm" checked> <span>تضمين العلامة المائية (د. رامي صلاح)</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:11.5px;margin-bottom:6px;cursor:pointer;">
+                    <input type="checkbox" id="expIncAnnot" checked> <span>تضمين القياسات والعلامات (Annotations)</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:11.5px;margin-bottom:6px;cursor:pointer;">
+                    <input type="checkbox" id="expIncMask" checked> <span>تطبيق أشرطة إخفاء هوية المريض (PHI Mask)</span>
+                </label>
+                <div id="expDimsInfo" style="font-size:11px;color:var(--accent);margin-top:6px;"></div>
+            </div>
+        </div>
+
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+            <button class="btn" id="genExportPreviewBtn" style="flex:1;justify-content:center;">👁️ معاينة مقارنة (الأصل مقابل المُصدَّر)</button>
+            <button class="btn btn-primary" id="execExportBtn" style="flex:1.4;justify-content:center;">⬇️ EXPORT PROFESSIONAL X-RAY IMAGE</button>
+        </div>
+        <div id="exportStatusMsg" style="font-size:11.5px;"></div>
+        <div class="preview-pair" id="exportPreviewPair" style="display:none;">
+            <div><div style="font-size:11px;color:var(--muted);margin-bottom:3px;">Original (الأصل)</div><img id="expPrevOrig" alt=""></div>
+            <div><div style="font-size:11px;color:var(--accent);margin-bottom:3px;">Export Derivative (المُصدَّر)</div><img id="expPrevOut" alt=""></div>
+        </div>
+    </div>
+</div>
+
+<!-- SETTINGS & PRIVACY MODAL -->
+<div class="modal-backdrop" id="settingsModal">
+    <div class="modal-box">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <h3 style="margin:0;color:var(--accent);font-size:15px;">⚙️ الإعدادات والأمان والخصوصية</h3>
+            <button class="btn" id="closeSettingsBtn">✕</button>
+        </div>
+
+        <div class="section-card">
+            <h4>🔑 مفتاح Gemini API (يُحفظ في متصفحك فقط)</h4>
+            <div style="display:flex;gap:6px;">
+                <input type="password" id="apiKeyInput" placeholder="الصق مفتاح Gemini API هنا...">
+                <button class="btn btn-primary" id="saveKeyBtn">حفظ</button>
+            </div>
+            <div id="keyStatusMsg" style="font-size:11px;margin-top:5px;"></div>
+            <label class="field-lbl" style="margin-top:8px;">رابط خادم FastAPI / MONAI خارجي (اختياري للاستخدام المؤسسي الآمن)</label>
+            <input type="text" id="backendUrlInput" placeholder="مثال: https://your-fastapi-server.com/api/xray/analyze">
+            <button class="btn" id="saveBackendBtn" style="margin-top:5px;">حفظ رابط الخادم</button>
+        </div>
+
+        <div class="section-card">
+            <h4>🔍 حدود التكبير (Zoom Limits)</h4>
+            <div class="grid-2">
+                <div><label class="field-lbl">Min Zoom ×</label><input type="number" id="minZoomInput" min="0.1" max="0.9" step="0.05" value="0.25"></div>
+                <div><label class="field-lbl">Max Zoom ×</label><input type="number" id="maxZoomInput" min="4" max="24" step="1" value="12"></div>
+            </div>
+            <button class="btn" id="saveZoomLimitsBtn" style="margin-top:6px;">تطبيق الحدود</button>
+        </div>
+
+        <div class="section-card">
+            <h4>📜 سجل التدقيق الخالي من بيانات المرضى (De-identified Audit Log)</h4>
+            <div id="auditLogBox" style="max-height:150px;overflow-y:auto;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+/* ============================================================================
+   RAMYRAY AI STUDIO X-RAY v3.0 — STRICT CONVENTIONAL RADIOGRAPHY WORKSTATION
+   ============================================================================ */
+
+const ANATOMY_GROUPS = {
+    "Chest (الصدر)": ["Chest", "Lungs", "Ribs", "Sternum", "Clavicles"],
+    "Abdomen (البطن)": ["Abdomen", "KUB", "Abdomen Erect", "Abdomen Supine"],
+    "Skull (الجمجمة)": ["Skull", "Facial Bones", "Nasal Bones", "Paranasal Sinuses", "Mandible"],
+    "Spine (العمود الفقري)": ["Cervical Spine", "Thoracic Spine", "Lumbar Spine", "Sacrum", "Coccyx"],
+    "Upper Extremities (الأطراف العلوية)": ["Shoulder", "Clavicle", "Scapula", "Humerus", "Elbow", "Forearm", "Wrist", "Hand", "Fingers"],
+    "Lower Extremities (الأطراف السفلية)": ["Pelvis", "Hip", "Femur", "Knee", "Patella", "Tibia", "Fibula", "Ankle", "Foot", "Toes", "Calcaneus"]
+};
+
+const XRAY_TEMPLATES = {
+    chest: { name: "Chest X-Ray", tech: "PA / AP chest radiograph evaluated.", findings: "Lungs & Pleura: Clear lung fields. No focal consolidation, pleural effusion, or pneumothorax.\nCardiomediastinal Silhouette: Heart size and mediastinal contours within normal limits.\nOsseous Structures: Visualized ribs, clavicles, and thoracic spine intact.", impression: "No acute cardiopulmonary abnormality." },
+    abdomen: { name: "Abdomen / KUB X-Ray", tech: "Supine / Erect abdominal radiograph reviewed.", findings: "Bowel Gas: Non-obstructive bowel gas pattern.\nFree Air: No free intraperitoneal air under hemidiaphragms (if erect).\nCalcifications: No definite radiopaque urinary or biliary calculi.\nBones: Visualized lumbar spine and pelvis unremarkable.", impression: "No radiographic evidence of bowel obstruction or pneumoperitoneum." },
+    skull: { name: "Skull / Facial X-Ray", tech: "Standard cranial/facial radiographic projections.", findings: "Calvarium & Facial Bones: No definite displaced fracture line.\nSinuses: Visualized paranasal sinuses appear aerated.", impression: "No acute displaced cranial fracture identified." },
+    cspine: { name: "Cervical Spine X-Ray", tech: "AP, Lateral, and/or Odontoid cervical views.", findings: "Alignment: Preserved anterior, posterior, and spinolaminar lines.\nVertebrae: Vertebral body heights maintained; no compression fracture.\nDisc Spaces & Soft Tissues: Preserved disc heights and prevertebral soft tissues.", impression: "No acute cervical spine fracture or subluxation." },
+    tspine: { name: "Thoracic Spine X-Ray", tech: "AP and Lateral thoracic spine radiographs.", findings: "Alignment: Normal thoracic kyphosis without significant scoliosis.\nVertebrae: Maintained vertebral body heights and pedicles.", impression: "No acute thoracic vertebral compression fracture." },
+    lspine: { name: "Lumbar Spine X-Ray", tech: "AP and Lateral lumbar spine radiographs.", findings: "Alignment: Preserved lumbar lordosis without spondylolisthesis.\nVertebrae & Discs: Vertebral heights intact; evaluate disc spaces for narrowing or osteophytes.", impression: "No acute lumbar fracture." },
+    pelvis: { name: "Pelvis X-Ray", tech: "AP Pelvis radiograph.", findings: "Pelvic Ring: Intact pelvic ring, pubic symphysis, and sacroiliac joints.\nHips: Symmetric hip joint spaces and intact femoral necks.", impression: "No acute pelvic or hip fracture." },
+    shoulder: { name: "Shoulder X-Ray", tech: "AP and Y-view / Axial shoulder radiographs.", findings: "Alignment: Glenohumeral and acromioclavicular joints congruous.\nBones: No humeral head, clavicle, or scapular fracture.", impression: "No acute fracture or dislocation." },
+    elbow: { name: "Elbow X-Ray", tech: "AP and Lateral elbow views.", findings: "Bones: Intact distal humerus, radial head, and olecranon.\nSoft Tissues: No elevated anterior or visible posterior fat pad sign.", impression: "No acute elbow fracture or joint effusion." },
+    wrist: { name: "Wrist X-Ray", tech: "PA, Oblique, and Lateral wrist views.", findings: "Bones: Intact distal radius, ulna, and carpal bones (scaphoid cortical margins intact).\nAlignment: Preserved carpal arcs.", impression: "No acute wrist fracture." },
+    hand: { name: "Hand / Fingers X-Ray", tech: "PA, Oblique, and Lateral hand radiographs.", findings: "Bones & Joints: Intact metacarpals and phalanges; preserved joint spaces.", impression: "No acute osseous abnormality." },
+    hip: { name: "Hip X-Ray", tech: "AP and Lateral hip views.", findings: "Bones: Intact femoral neck, intertrochanteric region, and acetabulum; Shenton line intact.", impression: "No acute hip fracture." },
+    femur: { name: "Femur X-Ray", tech: "AP and Lateral femoral shaft views.", findings: "Shaft: Intact femoral cortex without fracture or lytic/sclerotic lesion.", impression: "Normal femur radiograph." },
+    knee: { name: "Knee X-Ray", tech: "AP, Lateral, and/or Skyline knee views.", findings: "Bones: Intact distal femur, proximal tibia/fibula, and patella.\nJoint: Preserved femorotibial joint spaces; no large suprapatellar effusion.", impression: "No acute knee fracture." },
+    leg: { name: "Tibia / Fibula X-Ray", tech: "AP and Lateral lower leg radiographs including knee and ankle joints.", findings: "Shafts: Intact tibial and fibular shafts without cortical disruption.", impression: "No acute tibial or fibular fracture." },
+    ankle: { name: "Ankle X-Ray", tech: "AP, Mortise, and Lateral ankle views.", findings: "Bones: Medial, lateral, and posterior malleoli intact; talar dome preserved.\nJoint: Symmetric ankle mortise; no talar shift.", impression: "No acute ankle fracture or mortise widening." },
+    foot: { name: "Foot / Calcaneus X-Ray", tech: "DP, Oblique, and Lateral foot radiographs.", findings: "Bones: Tarsals, metatarsals, phalanges, and Lisfranc alignment preserved.", impression: "No acute foot fracture." },
+    pediatric: { name: "Pediatric X-Ray", tech: "Pediatric collimated projection radiograph.", findings: "Growth Plates: Age-appropriate physes and ossification centers.\nBones/Lungs: No acute torus/greenstick fracture or acute focal infiltrate.", impression: "Age-appropriate pediatric radiograph; correlate clinically." }
+};
+
+const POS_GUIDES = {
+    Chest: "<b>Chest PA Erect:</b> SID 180 cm, shoulders rolled forward to clear scapulae, CR at T7 (inferior angle of scapulae), full second inspiration. Evaluate: 10 posterior ribs visible, equidistant clavicular heads from spinous processes, sharp costophrenic angles.",
+    Abdomen: "<b>Abdomen AP Supine/Erect:</b> SID 100 cm, CR at iliac crests (supine) or 5 cm above iliac crests (erect to include hemidiaphragms). Evaluate: symphysis pubis to diaphragms, symmetric obturator foramina.",
+    Spine: "<b>Spine AP & Lateral:</b> SID 100 cm (180 cm for Lateral C-Spine). Ensure true lateral with superimposed posterior borders and open intervertebral disc spaces; include C7-T1 junction on cervical lateral.",
+    Extremity: "<b>Extremity Radiographs:</b> Minimum two orthogonal views (AP/PA + Lateral). Long bones must include both proximal and distal joints; joints centered at CR with tight collimation.",
+    Skull: "<b>Skull / PNS:</b> Align OML/IOML strictly perpendicular to IR; check symmetric petrous ridges and absence of rotation."
+};
+
+const QC_CHECKLISTS = {
+    Chest: ["تغطية كاملة لقمتي الرئتين والزاويتين الضلعيتين الحجابيتين (CP Angles)", "غياب الدوران (تساوي مسافة نهايتي الترقوة عن النتوء الشوكي)", "شهيق كافٍ (رؤية 9–10 أضلاع خلفية)", "إبعاد لوحي الكتف خارج الساحتين الرئويتين", "تحديد الحقل (Collimation) وتوفر علامة الجانب (R/L)"],
+    Spine: ["تغطية تشريحية كاملة للمستويات المطلوبة (مثلاً C7-T1 في العنقية)", "وضعية جانبية حقيقية بدون دوران أو ميل", "توضيح المسافات الغضروفية والنتوءات الشوكية", "جودة التعريض وغياب الاهتزاز الحركي (Motion Blur)"],
+    Extremity: ["إظهار المفصلين القريب والبعيد للعظام الطويلة أو المفصل كاملاً", "توفر مسقطين متعامدين على الأقل (AP/PA + Lateral)", "غياب الشوائب المعدنية أو الملابس (Artifacts)", "حدة الحواف القشرية للعظم والتباين المناسب"],
+    General: ["التغطية التشريحية الكاملة والتمركز الصحيح (Centering)", "تحديد الحقل الإشعاعي (Collimation)", "غياب الاهتزاز الحركي والتشويش", "التحقق من علامة الجانب الصحيحة (R/L)"]
+};
+
+const state = {
+    lang: 'ar',
+    studies: [],
+    activeIdx: -1,
+    compareIdx: -1,
+    tool: 'pan',
+    anatomy: 'Chest',
+    bodyBack: false,
+    splitCompare: false,
+    splitPos: 0.5,
+    sideBySide: false,
+    showAnnot: true,
+    showLabels: true,
+    previewWatermark: false,
+    selectedMeasIdx: -1,
+    minZoom: 0.25,
+    maxZoom: 12.0,
+    auditLog: [],
+    aiHistory: [],
+    reportHistory: [],
+    aiAbortController: null,
+    aiTimerInterval: null,
+    zoomAnimId: null,
+    wm: { enabled: true, logo: true, format: 'ar', pos: 'br', color: '#38bdf8', size: 20, opacity: 75 }
+};
+
+// Multi-touch & Pointer State
+const activePointers = new Map();
+let pinchState = null;
+let pointerDown = false;
+let dragStart = null;
+let tempShape = null;
+let multiPts = [];
+let activeTransform = null;
+let lastTapInfo = { time: 0, x: 0, y: 0 };
+let movingMeasState = null;
+
+// Reusable Canvases (Prevents Memory Leaks)
+const canvasWrap = document.getElementById('canvasWrap');
+const canvas = document.getElementById('viewCanvas');
+const ctx = canvas.getContext('2d');
+const procCanvas = document.createElement('canvas');
+const procCtx = procCanvas.getContext('2d');
+const origCanvas = document.createElement('canvas');
+const origCtx = origCanvas.getContext('2d');
+const compareCacheCanvas = document.createElement('canvas');
+const compareCacheCtx = compareCacheCanvas.getContext('2d');
+let compareCacheId = null;
+
+/* ============================================================================
+   1. AUDIT LOGGING (STRICTLY NO PHI) & HELPERS
+   ============================================================================ */
+
+function logAudit(action, detail) {
+    const safeDetail = String(detail || '').slice(0, 90);
+    state.auditLog.unshift({ time: new Date().toLocaleTimeString('en-GB'), action, detail: safeDetail });
+    if (state.auditLog.length > 60) state.auditLog.pop();
+    const box = document.getElementById('auditLogBox');
+    if (box) {
+        box.innerHTML = state.auditLog.map(e => `<div class="audit-row">[${e.time}] <b>${e.action}</b>: ${e.detail}</div>`).join('');
+    }
+}
+
+function defaultProc(study) {
+    return {
+        wl: study?.defaultWL ?? 128, ww: study?.defaultWW ?? 256,
+        brightness: 0, contrast: 100, exposure: 0, gamma: 1.0,
+        sharpen: 0, denoise: 0, clahe: false, histEq: false, normalize: false, grayscale: false, invert: false,
+        glare: 0, deskew: 0, borderCrop: 0,
+        rot90: 0, flipH: false, flipV: false,
+        zoom: 1.0, panX: 0, panY: 0
+    };
+}
+
+function getActiveStudy() { return state.activeIdx >= 0 ? state.studies[state.activeIdx] : null; }
+function pushHistory(study) {
+    if (!study) return;
+    study.undoStack.push(JSON.stringify(study.proc));
+    if (study.undoStack.length > 35) study.undoStack.shift();
+    study.redoStack = [];
+}
+function clampZoom(z) { return Math.max(state.minZoom, Math.min(state.maxZoom, z)); }
+function cancelZoomAnim() { if (state.zoomAnimId) { cancelAnimationFrame(state.zoomAnimId); state.zoomAnimId = null; } }
+
+/* ============================================================================
+   2. FULL-RESOLUTION IMPORT (DICOM X-RAY + STANDARD IMAGES, ZERO LOSS)
+   ============================================================================ */
+
+function parseDicomXrayBuffer(buffer, fileName) {
+    const bytes = new Uint8Array(buffer);
+    const ds = dicomParser.parseDicom(bytes);
+    const pxEl = ds.elements.x7fe00010;
+    if (!pxEl) throw new Error('لم يتم العثور على بيانات البكسل في ملف DICOM.');
+    if (pxEl.encapsulatedPixelData) throw new Error('ملف DICOM مضغوط (Encapsulated)؛ يرجى تصديره غير مضغوط أو كصورة PNG/TIFF.');
+
+    const modality = (ds.string('x00080060') || 'DX').trim().toUpperCase();
+    if (['CT', 'MR', 'US', 'PT', 'NM'].includes(modality)) {
+        throw new Error(`هذا الإصدار مخصص حصرياً للأشعة السينية (X-Ray Only). الملف المرفوع من نوع ${modality}.`);
+    }
+
+    const rows = ds.uint16('x00280010');
+    const cols = ds.uint16('x00280011');
+    const bitsAlloc = ds.uint16('x00280100') || 16;
+    const pixelRep = ds.uint16('x00280103') || 0;
+    const photoInterp = (ds.string('x00280004') || 'MONOCHROME2').trim();
+    const slope = parseFloat(ds.string('x00281053')) || 1.0;
+    const intercept = parseFloat(ds.string('x00281052')) || 0.0;
+
+    const wcStr = ds.string('x00281050'), wwStr = ds.string('x00281051');
+    let wc = wcStr ? parseFloat(wcStr.split('\\')[0]) : null;
+    let ww = wwStr ? parseFloat(wwStr.split('\\')[0]) : null;
+
+    const psStr = ds.string('x00181164') || ds.string('x00280030');
+    let pixelSpacing = null;
+    if (psStr) {
+        const parts = psStr.split('\\').map(Number);
+        if (parts.length >= 2 && parts[0] > 0 && parts[1] > 0) pixelSpacing = { row: parts[0], col: parts[1] };
+    }
+
+    const slice = bytes.slice(pxEl.dataOffset, pxEl.dataOffset + pxEl.length);
+    let rawTyped = bitsAlloc === 8 ? new Uint8Array(slice.buffer) : (pixelRep === 1 ? new Int16Array(slice.buffer) : new Uint16Array(slice.buffer));
+
+    // Preserve FULL native resolution Float32 array for lossless export!
+    const totalFull = rows * cols;
+    const fullPixels = new Float32Array(totalFull);
+    let minV = Infinity, maxV = -Infinity;
+    for (let i = 0; i < totalFull; i++) {
+        const v = rawTyped[i] * slope + intercept;
+        fullPixels[i] = v;
+        if (v < minV) minV = v;
+        if (v > maxV) maxV = v;
+    }
+    if (wc === null || ww === null || isNaN(wc) || isNaN(ww) || ww <= 0) {
+        ww = Math.max(1, maxV - minV);
+        wc = minV + ww / 2;
+    }
+
+    // Build smooth display proxy (max 1400px) while retaining fullPixels untouched
+    const maxProxy = 1400;
+    const scale = Math.min(1, maxProxy / Math.max(cols, rows));
+    const pw = Math.max(1, Math.round(cols * scale));
+    const ph = Math.max(1, Math.round(rows * scale));
+    const proxyPixels = new Float32Array(pw * ph);
+    const thumbCanvas = document.createElement('canvas');
+    thumbCanvas.width = pw; thumbCanvas.height = ph;
+    const tCtx = thumbCanvas.getContext('2d');
+    const proxyImgData = tCtx.createImageData(pw, ph);
+    const low = wc - ww / 2;
+
+    for (let y = 0; y < ph; y++) {
+        const sy = Math.min(rows - 1, Math.floor(y / scale));
+        for (let x = 0; x < pw; x++) {
+            const sx = Math.min(cols - 1, Math.floor(x / scale));
+            const v = fullPixels[sy * cols + sx];
+            const idx = y * pw + x;
+            proxyPixels[idx] = v;
+            let g = ((v - low) / ww) * 255;
+            if (photoInterp === 'MONOCHROME1') g = 255 - g;
+            g = Math.max(0, Math.min(255, Math.round(g)));
+            proxyImgData.data[idx * 4] = g;
+            proxyImgData.data[idx * 4 + 1] = g;
+            proxyImgData.data[idx * 4 + 2] = g;
+            proxyImgData.data[idx * 4 + 3] = 255;
+        }
+    }
+    tCtx.putImageData(proxyImgData, 0, 0);
+
+    const study = {
+        id: String(Date.now() + Math.random()),
+        name: fileName,
+        isDicom: true,
+        isSecondaryCapture: false,
+        width: pw, height: ph,
+        origWidth: cols, origHeight: rows,
+        fullPixels,
+        proxyPixels,
+        fullOrigCanvas: null,
+        photoInterp, minVal: minV, maxVal: maxV,
+        defaultWL: Math.round(wc), defaultWW: Math.round(ww),
+        origProxyData: proxyImgData,
+        thumbUrl: thumbCanvas.toDataURL('image/jpeg', 0.55),
+        meta: {
+            modality,
+            bodyPart: (ds.string('x00180015') || '').trim(),
+            viewPos: (ds.string('x00185101') || '').trim(),
+            laterality: (ds.string('x00200062') || ds.string('x00200060') || '').trim(),
+            kvp: (ds.string('x00180060') || '').trim(),
+            mas: (ds.string('x00181152') || ds.string('x00181151') || '').trim(),
+            sid: (ds.string('x00181110') || '').trim(),
+            detector: (ds.string('x00187004') || ds.string('x00081090') || '').trim(),
+            studyUID: (ds.string('x0020000d') || '').trim(),
+            bitsAllocated: bitsAlloc,
+            pixelSpacing,
+            manualMmPerPx: null
+        },
+        measurements: [],
+        aiMeta: null,
+        aiFindings: [],
+        undoStack: [],
+        redoStack: []
+    };
+    study.proc = defaultProc(study);
+    return study;
+}
+
+function loadStandardXrayImage(file, isCameraCapture) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('تعذر قراءة ملف الصورة.'));
+        reader.onload = (ev) => {
+            const img = new Image();
+            img.onerror = () => reject(new Error('تنسيق الصورة غير مدعوم.'));
+            img.onload = () => {
+                // Full Native Resolution Canvas (Untouched!)
+                const fullC = document.createElement('canvas');
+                fullC.width = img.naturalWidth;
+                fullC.height = img.naturalHeight;
+                fullC.getContext('2d').drawImage(img, 0, 0);
+
+                // Smooth Display Proxy
+                const maxProxy = 1400;
+                const scale = Math.min(1, maxProxy / Math.max(img.naturalWidth, img.naturalHeight));
+                const pw = Math.max(1, Math.round(img.naturalWidth * scale));
+                const ph = Math.max(1, Math.round(img.naturalHeight * scale));
+                const proxyC = document.createElement('canvas');
+                proxyC.width = pw; proxyC.height = ph;
+                const pCtx = proxyC.getContext('2d');
+                pCtx.drawImage(img, 0, 0, pw, ph);
+                const proxyImgData = pCtx.getImageData(0, 0, pw, ph);
+
+                const study = {
+                    id: String(Date.now() + Math.random()),
+                    name: file.name || (isCameraCapture ? 'Monitor_XRay_Capture.jpg' : 'XRay_Image.png'),
+                    isDicom: false,
+                    isSecondaryCapture: true,
+                    captureType: isCameraCapture ? 'Camera Monitor Capture' : 'Secondary Capture',
+                    width: pw, height: ph,
+                    origWidth: img.naturalWidth, origHeight: img.naturalHeight,
+                    fullPixels: null,
+                    proxyPixels: null,
+                    fullOrigCanvas: fullC,
+                    defaultWL: 128, defaultWW: 256,
+                    origProxyData: proxyImgData,
+                    thumbUrl: proxyC.toDataURL('image/jpeg', 0.55),
+                    meta: {
+                        modality: document.getElementById('modalitySelect').value,
+                        bodyPart: state.anatomy, viewPos: '', laterality: '',
+                        kvp: '', mas: '', sid: '', detector: 'Secondary Capture (Uncalibrated)',
+                        studyUID: '', bitsAllocated: 8, pixelSpacing: null, manualMmPerPx: null
+                    },
+                    measurements: [],
+                    aiMeta: null,
+                    aiFindings: [],
+                    undoStack: [],
+                    redoStack: []
+                };
+                study.proc = defaultProc(study);
+                resolve(study);
+            };
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+async function handleFiles(fileList, isCamera = false) {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+    let added = 0;
+    for (const file of files) {
+        try {
+            const study = file.name.toLowerCase().endsWith('.dcm')
+                ? parseDicomXrayBuffer(await file.arrayBuffer(), file.name)
+                : await loadStandardXrayImage(file, isCamera);
+            state.studies.push(study);
+            added++;
+            logAudit('IMPORT', `${study.isDicom ? 'DICOM-' + study.meta.modality : 'SC'} (${study.origWidth}x${study.origHeight})`);
+        } catch (err) {
+            alert(`تعذر استيراد الملف:\n${err.message}`);
+            logAudit('IMPORT_ERR', err.message);
+        }
+    }
+    if (added > 0) {
+        selectStudy(state.studies.length - 1);
+        renderStudyList();
+        updateNavControls();
+    }
+}
+
+/* ============================================================================
+   3. SHARED NON-DESTRUCTIVE PIXEL PIPELINE (PROXY & FULL-RES EXPORT)
+   ============================================================================ */
+
+function renderPixelsToImageData(w, h, study, p, isFullRes) {
+    const n = w * h;
+    const out = new ImageData(w, h);
+    const dst = out.data;
+
+    let srcData = null;
+    let dicomArr = null;
+    if (study.isDicom) {
+        dicomArr = isFullRes ? study.fullPixels : study.proxyPixels;
+    } else {
+        if (isFullRes) {
+            srcData = study.fullOrigCanvas.getContext('2d').getImageData(0, 0, w, h).data;
+        } else {
+            srcData = study.origProxyData.data;
+        }
+    }
+
+    const contrastF = p.contrast / 100;
+    const expF = Math.pow(2, p.exposure / 50);
+    const invGamma = 1 / Math.max(0.2, p.gamma);
+    const low = p.wl - p.ww / 2;
+    const invWW = 1 / Math.max(1, p.ww);
+    const glareAmt = p.glare / 100;
+
+    const lumBuf = new Uint8Array(n);
+    let minL = 255, maxL = 0;
+
+    for (let i = 0; i < n; i++) {
+        let r, g, b;
+        if (study.isDicom) {
+            let v = (dicomArr[i] - low) * invWW * 255;
+            if (study.photoInterp === 'MONOCHROME1') v = 255 - v;
+            r = g = b = Math.max(0, Math.min(255, v));
+        } else {
+            r = srcData[i * 4]; g = srcData[i * 4 + 1]; b = srcData[i * 4 + 2];
+            if (p.grayscale) {
+                const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+                r = g = b = gray;
+            }
+            r = (r - low) * invWW * 255;
+            g = (g - low) * invWW * 255;
+            b = (b - low) * invWW * 255;
+        }
+
+        if (glareAmt > 0) {
+            const comp = c => c > 188 ? 188 + (c - 188) * (1 - glareAmt * 0.74) : c;
+            r = comp(r); g = comp(g); b = comp(b);
+        }
+
+        r = ((r * expF) - 128) * contrastF + 128 + p.brightness;
+        g = ((g * expF) - 128) * contrastF + 128 + p.brightness;
+        b = ((b * expF) - 128) * contrastF + 128 + p.brightness;
+
+        r = Math.pow(Math.max(0, Math.min(255, r)) / 255, invGamma) * 255;
+        g = Math.pow(Math.max(0, Math.min(255, g)) / 255, invGamma) * 255;
+        b = Math.pow(Math.max(0, Math.min(255, b)) / 255, invGamma) * 255;
+
+        dst[i * 4] = r; dst[i * 4 + 1] = g; dst[i * 4 + 2] = b; dst[i * 4 + 3] = 255;
+        const l = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+        lumBuf[i] = l;
+        if (l < minL) minL = l;
+        if (l > maxL) maxL = l;
+    }
+
+    if (p.normalize && maxL > minL) {
+        const sc = 255 / (maxL - minL);
+        for (let i = 0; i < n; i++) {
+            dst[i * 4] = Math.max(0, Math.min(255, (dst[i * 4] - minL) * sc));
+            dst[i * 4 + 1] = Math.max(0, Math.min(255, (dst[i * 4 + 1] - minL) * sc));
+            dst[i * 4 + 2] = Math.max(0, Math.min(255, (dst[i * 4 + 2] - minL) * sc));
+            lumBuf[i] = Math.round((lumBuf[i] - minL) * sc);
+        }
+    }
+
+    if (p.histEq || p.clahe) {
+        const hist = new Uint32Array(256);
+        for (let i = 0; i < n; i++) hist[lumBuf[i]]++;
+        if (p.clahe) {
+            const clip = Math.max(10, Math.floor((n / 256) * 2.7));
+            let excess = 0;
+            for (let k = 0; k < 256; k++) { if (hist[k] > clip) { excess += hist[k] - clip; hist[k] = clip; } }
+            const add = Math.floor(excess / 256);
+            for (let k = 0; k < 256; k++) hist[k] += add;
+        }
+        const lut = new Uint8Array(256);
+        let sum = 0, firstNZ = -1;
+        for (let k = 0; k < 256; k++) {
+            sum += hist[k];
+            if (firstNZ === -1 && hist[k] > 0) firstNZ = sum;
+            lut[k] = Math.max(0, Math.min(255, Math.round(((sum - firstNZ) / Math.max(1, n - firstNZ)) * 255)));
+        }
+        const blend = p.clahe ? 0.65 : 0.85;
+        for (let i = 0; i < n; i++) {
+            const oldL = Math.max(1, lumBuf[i]);
+            const ratio = (lumBuf[i] * (1 - blend) + lut[lumBuf[i]] * blend) / oldL;
+            dst[i * 4] = Math.min(255, dst[i * 4] * ratio);
+            dst[i * 4 + 1] = Math.min(255, dst[i * 4 + 1] * ratio);
+            dst[i * 4 + 2] = Math.min(255, dst[i * 4 + 2] * ratio);
+        }
+    }
+
+    if (p.denoise > 0 || p.sharpen > 0) {
+        const copy = new Uint8ClampedArray(dst);
+        const dAmt = p.denoise / 100;
+        const sAmt = (p.sharpen / 100) * 1.45;
+        for (let y = 1; y < h - 1; y++) {
+            for (let x = 1; x < w - 1; x++) {
+                const idx = (y * w + x) * 4;
+                for (let ch = 0; ch < 3; ch++) {
+                    const c = copy[idx + ch];
+                    const avg = (
+                        copy[((y - 1) * w + (x - 1)) * 4 + ch] + copy[((y - 1) * w + x) * 4 + ch] + copy[((y - 1) * w + (x + 1)) * 4 + ch] +
+                        copy[(y * w + (x - 1)) * 4 + ch] + c + copy[(y * w + (x + 1)) * 4 + ch] +
+                        copy[((y + 1) * w + (x - 1)) * 4 + ch] + copy[((y + 1) * w + x) * 4 + ch] + copy[((y + 1) * w + (x + 1)) * 4 + ch]
+                    ) / 9;
+                    let v = c;
+                    if (dAmt > 0) v = v * (1 - dAmt) + avg * dAmt;
+                    if (sAmt > 0) v = v + (v - avg) * sAmt;
+                    dst[idx + ch] = Math.max(0, Math.min(255, v));
+                }
+            }
+        }
+    }
+
+    if (p.invert) {
+        for (let i = 0; i < n; i++) {
+            dst[i * 4] = 255 - dst[i * 4];
+            dst[i * 4 + 1] = 255 - dst[i * 4 + 1];
+            dst[i * 4 + 2] = 255 - dst[i * 4 + 2];
+        }
+    }
+
+    // Border cleanup blackout (non-destructive)
+    if (p.borderCrop > 0) {
+        const mx = Math.floor(w * (p.borderCrop / 100));
+        const my = Math.floor(h * (p.borderCrop / 100));
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+                if (x < mx || x >= w - mx || y < my || y >= h - my) {
+                    const idx = (y * w + x) * 4;
+                    dst[idx] = dst[idx + 1] = dst[idx + 2] = 0;
+                }
+            }
+        }
+    }
+    return out;
+}
+
+function buildProcessedProxy(study) {
+    if (!study) return;
+    origCanvas.width = study.width; origCanvas.height = study.height;
+    origCtx.putImageData(study.origProxyData, 0, 0);
+
+    procCanvas.width = study.width; procCanvas.height = study.height;
+    const imgData = renderPixelsToImageData(study.width, study.height, study, study.proc, false);
+    procCtx.putImageData(imgData, 0, 0);
+}
+
+/* ============================================================================
+   4. PRECISION ZOOM & EXACT AFFINE COORDINATE ENGINE
+   ============================================================================ */
+
+function buildTransform(study, bx, by, bw, bh, p) {
+    const baseScale = Math.min((bw - 16) / study.width, (bh - 16) / study.height);
+    const scale = baseScale * p.zoom;
+    const cx = bx + bw / 2 + p.panX;
+    const cy = by + bh / 2 + p.panY;
+    const rad = ((p.rot90 + p.deskew) * Math.PI) / 180;
+    return {
+        w: study.width, h: study.height, baseScale, scale, cx, cy, rad,
+        cos: Math.cos(rad), sin: Math.sin(rad),
+        flipX: p.flipH ? -1 : 1, flipY: p.flipV ? -1 : 1
+    };
+}
+
+function normToScreen(nx, ny, tx) {
+    const lx = (nx - 0.5) * tx.w * tx.flipX;
+    const ly = (ny - 0.5) * tx.h * tx.flipY;
+    return {
+        x: tx.cx + (lx * tx.cos - ly * tx.sin) * tx.scale,
+        y: tx.cy + (lx * tx.sin + ly * tx.cos) * tx.scale
+    };
+}
+
+function screenToNorm(sx, sy, tx) {
+    const dx = (sx - tx.cx) / tx.scale;
+    const dy = (sy - tx.cy) / tx.scale;
+    const lx = dx * tx.cos + dy * tx.sin;
+    const ly = -dx * tx.sin + dy * tx.cos;
+    return {
+        nx: (lx * tx.flipX) / tx.w + 0.5,
+        ny: (ly * tx.flipY) / tx.h + 0.5
+    };
+}
+
+function computeZoomedPan(study, targetZoom, pivotX, pivotY) {
+    const vx = canvasWrap.clientWidth / 2, vy = canvasWrap.clientHeight / 2;
+    const ratio = targetZoom / Math.max(0.0001, study.proc.zoom);
+    return {
+        panX: pivotX - vx - (pivotX - (vx + study.proc.panX)) * ratio,
+        panY: pivotY - vy - (pivotY - (vy + study.proc.panY)) * ratio
+    };
+}
+
+function zoomAroundPointInstant(study, newZoom, pivotX, pivotY) {
+    cancelZoomAnim();
+    const tz = clampZoom(newZoom);
+    const { panX, panY } = computeZoomedPan(study, tz, pivotX, pivotY);
+    study.proc.zoom = tz; study.proc.panX = panX; study.proc.panY = panY;
+    renderViewport();
+}
+
+function animateViewportTo(study, targetZoom, targetPanX, targetPanY, ms = 175) {
+    if (!study) return;
+    cancelZoomAnim();
+    const cz = clampZoom(targetZoom);
+    const sz = study.proc.zoom, spx = study.proc.panX, spy = study.proc.panY;
+    const t0 = performance.now();
+    function step(now) {
+        const pr = Math.min(1, (now - t0) / ms);
+        const ease = 1 - Math.pow(1 - pr, 3);
+        study.proc.zoom = sz + (cz - sz) * ease;
+        study.proc.panX = spx + (targetPanX - spx) * ease;
+        study.proc.panY = spy + (targetPanY - spy) * ease;
+        renderViewport();
+        state.zoomAnimId = pr < 1 ? requestAnimationFrame(step) : null;
+    }
+    state.zoomAnimId = requestAnimationFrame(step);
+}
+
+function smoothZoomByFactor(f, px = null, py = null) {
+    const s = getActiveStudy(); if (!s) return;
+    const x = px ?? canvasWrap.clientWidth / 2, y = py ?? canvasWrap.clientHeight / 2;
+    const tz = clampZoom(s.proc.zoom * f);
+    const { panX, panY } = computeZoomedPan(s, tz, x, y);
+    animateViewportTo(s, tz, panX, panY, 165);
+}
+
+function fitToScreen(anim = true) {
+    const s = getActiveStudy(); if (!s) return;
+    if (anim) animateViewportTo(s, 1.0, 0, 0, 175);
+    else { cancelZoomAnim(); s.proc.zoom = 1.0; s.proc.panX = 0; s.proc.panY = 0; renderViewport(); }
+}
+
+function zoomToActualSize() {
+    const s = getActiveStudy(); if (!s || !activeTransform) return;
+    const nativeScale = s.origWidth / s.width;
+    const tz = clampZoom(nativeScale / Math.max(0.0001, activeTransform.baseScale));
+    animateViewportTo(s, tz, 0, 0, 190);
+}
+
+/* ============================================================================
+   5. WATERMARK ENGINE (EXPORT DERIVATIVE + LIVE PREVIEW, NON-DESTRUCTIVE)
+   ============================================================================ */
+
+function drawWatermarkOnContext(targetCtx, w, h, wmCfg) {
+    if (!wmCfg.enabled) return;
+    const scaleFactor = Math.max(0.75, Math.min(w, h) / 760);
+    const fontSize = Math.round(wmCfg.size * scaleFactor);
+    const pad = Math.round(16 * scaleFactor);
+
+    const lines = [];
+    if (wmCfg.format === 'ar') {
+        lines.push('د. رامي صلاح', 'أخصائي أول أشعة تشخيصية');
+    } else if (wmCfg.format === 'en') {
+        lines.push('Dr. Ramy Salah', 'Senior Specialist in Diagnostic Radiology');
+    } else {
+        lines.push('د. رامي صلاح | Dr. Ramy Salah', 'أخصائي أول أشعة تشخيصية — Senior Specialist in Diagnostic Radiology');
+    }
+
+    targetCtx.save();
+    targetCtx.globalAlpha = wmCfg.opacity / 100;
+    const isRight = wmCfg.pos === 'br' || wmCfg.pos === 'tr';
+    const isBottom = wmCfg.pos === 'br' || wmCfg.pos === 'bl';
+
+    targetCtx.font = `700 ${fontSize}px "Segoe UI", Tahoma, Arial, sans-serif`;
+    const w1 = targetCtx.measureText(lines[0]).width;
+    targetCtx.font = `500 ${Math.round(fontSize * 0.72)}px "Segoe UI", Tahoma, Arial, sans-serif`;
+    const w2 = targetCtx.measureText(lines[1]).width;
+
+    const logoW = wmCfg.logo ? Math.round(fontSize * 1.9) : 0;
+    const boxW = Math.max(w1, w2) + logoW + pad * 1.6;
+    const boxH = Math.round(fontSize * 2.55);
+
+    const bx = isRight ? (w - boxW - pad) : pad;
+    const by = isBottom ? (h - boxH - pad) : pad;
+
+    // Subtle dark backing pill for clinical readability on bright bone/background
+    targetCtx.fillStyle = 'rgba(6, 10, 18, 0.58)';
+    targetCtx.beginPath();
+    targetCtx.roundRect ? targetCtx.roundRect(bx, by, boxW, boxH, 8 * scaleFactor) : targetCtx.rect(bx, by, boxW, boxH);
+    targetCtx.fill();
+
+    let textX = bx + pad * 0.7;
+    if (wmCfg.logo) {
+        const lx = isRight ? (bx + boxW - logoW - pad * 0.4) : (bx + pad * 0.5);
+        const ly = by + (boxH - logoW) / 2;
+        targetCtx.fillStyle = wmCfg.color;
+        targetCtx.fillRect(lx, ly, logoW, logoW);
+        targetCtx.fillStyle = '#060a12';
+        targetCtx.font = `900 ${Math.round(logoW * 0.5)}px "Segoe UI", Arial`;
+        targetCtx.textAlign = 'center';
+        targetCtx.textBaseline = 'middle';
+        targetCtx.fillText('RR', lx + logoW / 2, ly + logoW / 2 + 1);
+        if (!isRight) textX = lx + logoW + pad * 0.6;
+    }
+
+    targetCtx.fillStyle = wmCfg.color;
+    targetCtx.textAlign = isRight ? 'right' : 'left';
+    targetCtx.textBaseline = 'top';
+    const anchorX = isRight ? (wmCfg.logo ? (bx + boxW - logoW - pad * 0.9) : (bx + boxW - pad * 0.7)) : textX;
+
+    targetCtx.font = `700 ${fontSize}px "Segoe UI", Tahoma, Arial, sans-serif`;
+    targetCtx.fillText(lines[0], anchorX, by + Math.round(fontSize * 0.35));
+    targetCtx.font = `500 ${Math.round(fontSize * 0.72)}px "Segoe UI", Tahoma, Arial, sans-serif`;
+    targetCtx.fillStyle = '#e2e8f0';
+    targetCtx.fillText(lines[1], anchorX, by + Math.round(fontSize * 1.48));
+    targetCtx.restore();
+}
+
+/* ============================================================================
+   6. VIEWPORT RENDERER & COLLISION-AWARE ANNOTATIONS / ROI
+   ============================================================================ */
+
+function resizeCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(100, canvasWrap.clientWidth * dpr);
+    canvas.height = Math.max(100, canvasWrap.clientHeight * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    renderViewport();
+}
+window.addEventListener('resize', resizeCanvas);
+
+function drawStudyWithTransform(targetCtx, imgSource, bx, by, bw, bh, tx) {
+    const dw = tx.w * tx.scale, dh = tx.h * tx.scale;
+    targetCtx.save();
+    targetCtx.beginPath(); targetCtx.rect(bx, by, bw, bh); targetCtx.clip();
+    targetCtx.imageSmoothingEnabled = tx.scale < 3.5;
+    targetCtx.imageSmoothingQuality = 'high';
+    targetCtx.translate(tx.cx, tx.cy);
+    targetCtx.rotate(tx.rad);
+    targetCtx.scale(tx.flipX, tx.flipY);
+    targetCtx.drawImage(imgSource, -dw / 2, -dh / 2, dw, dh);
+    targetCtx.restore();
+}
+
+function drawPolygon(targetCtx, nx1, ny1, nx2, ny2, tx) {
+    const c1 = normToScreen(nx1, ny1, tx), c2 = normToScreen(nx2, ny1, tx);
+    const c3 = normToScreen(nx2, ny2, tx), c4 = normToScreen(nx1, ny2, tx);
+    targetCtx.beginPath();
+    targetCtx.moveTo(c1.x, c1.y); targetCtx.lineTo(c2.x, c2.y);
+    targetCtx.lineTo(c3.x, c3.y); targetCtx.lineTo(c4.x, c4.y);
+    targetCtx.closePath();
+    return { c1, c2, c3, c4 };
+}
+
+function drawAnnotationsOnContext(targetCtx, study, tx, includeMasks = true, includeAnnot = true, includeLabels = true) {
+    const placedLabelRects = [];
+
+    function drawNonOverlappingTag(x, y, text, color) {
+        if (!includeLabels || !text) return;
+        targetCtx.font = 'bold 11px Consolas, monospace';
+        const w = targetCtx.measureText(text).width + 10;
+        const h = 17;
+        let ty = Math.max(16, y);
+        // Collision-aware vertical shift
+        let attempts = 0;
+        while (attempts < 10 && placedLabelRects.some(r => !(x + w < r.x || x > r.x + r.w || ty - h > r.y || ty < r.y - r.h))) {
+            ty += 19;
+            attempts++;
+        }
+        placedLabelRects.push({ x, y: ty, w, h });
+        targetCtx.fillStyle = 'rgba(0,0,0,0.82)';
+        targetCtx.fillRect(x, ty - 13, w, h);
+        targetCtx.fillStyle = color;
+        targetCtx.fillText(text, x + 5, ty);
+    }
+
+    const all = tempShape ? [...study.measurements, tempShape] : study.measurements;
+    targetCtx.save();
+
+    all.forEach((m, idx) => {
+        const isSel = idx === state.selectedMeasIdx;
+
+        // PHI Blackout Mask
+        if (m.type === 'mask') {
+            if (!includeMasks) return;
+            drawPolygon(targetCtx, m.p1.nx, m.p1.ny, m.p2.nx, m.p2.ny, tx);
+            targetCtx.fillStyle = '#000000';
+            targetCtx.fill();
+            if (isSel) { targetCtx.strokeStyle = '#f59e0b'; targetCtx.lineWidth = 2; targetCtx.stroke(); }
+            return;
+        }
+
+        if (!includeAnnot) return;
+        targetCtx.lineWidth = isSel ? 2.8 : 1.8;
+
+        if (m.type === 'dist' || m.type === 'calibrate') {
+            const col = m.type === 'calibrate' ? '#f59e0b' : '#22c55e';
+            const a = normToScreen(m.p1.nx, m.p1.ny, tx), b = normToScreen(m.p2.nx, m.p2.ny, tx);
+            targetCtx.strokeStyle = col; targetCtx.fillStyle = col;
+            targetCtx.beginPath(); targetCtx.moveTo(a.x, a.y); targetCtx.lineTo(b.x, b.y); targetCtx.stroke();
+            targetCtx.beginPath(); targetCtx.arc(a.x, a.y, 3.2, 0, Math.PI * 2); targetCtx.arc(b.x, b.y, 3.2, 0, Math.PI * 2); targetCtx.fill();
+            drawNonOverlappingTag((a.x + b.x) / 2, (a.y + b.y) / 2 - 6, m.label, col);
+        } else if (m.type === 'angle') {
+            const pts = m.pts.map(pt => normToScreen(pt.nx, pt.ny, tx));
+            targetCtx.strokeStyle = '#f59e0b'; targetCtx.fillStyle = '#f59e0b';
+            targetCtx.beginPath();
+            pts.forEach((pt, i) => i === 0 ? targetCtx.moveTo(pt.x, pt.y) : targetCtx.lineTo(pt.x, pt.y));
+            targetCtx.stroke();
+            pts.forEach(pt => { targetCtx.beginPath(); targetCtx.arc(pt.x, pt.y, 3.2, 0, Math.PI * 2); targetCtx.fill(); });
+            if (m.label && pts[1]) drawNonOverlappingTag(pts[1].x + 8, pts[1].y - 6, m.label, '#f59e0b');
+        } else if (m.type === 'cobb' || m.type === 'ctr') {
+            const col = m.type === 'ctr' ? '#f43f5e' : '#a855f7';
+            const pts = m.pts.map(pt => normToScreen(pt.nx, pt.ny, tx));
+            targetCtx.strokeStyle = col; targetCtx.fillStyle = col;
+            if (pts.length >= 2) { targetCtx.beginPath(); targetCtx.moveTo(pts[0].x, pts[0].y); targetCtx.lineTo(pts[1].x, pts[1].y); targetCtx.stroke(); }
+            if (pts.length >= 4) { targetCtx.beginPath(); targetCtx.moveTo(pts[2].x, pts[2].y); targetCtx.lineTo(pts[3].x, pts[3].y); targetCtx.stroke(); }
+            pts.forEach(pt => { targetCtx.beginPath(); targetCtx.arc(pt.x, pt.y, 3.2, 0, Math.PI * 2); targetCtx.fill(); });
+            if (m.label && pts[pts.length - 1]) drawNonOverlappingTag(pts[pts.length - 1].x + 6, pts[pts.length - 1].y - 6, m.label, col);
+        } else if (m.type === 'roi_rect') {
+            targetCtx.strokeStyle = isSel ? '#facc15' : '#38bdf8';
+            const { c1 } = drawPolygon(targetCtx, m.p1.nx, m.p1.ny, m.p2.nx, m.p2.ny, tx);
+            targetCtx.stroke();
+            targetCtx.fillStyle = isSel ? 'rgba(250,204,21,0.14)' : 'rgba(56,189,248,0.10)';
+            targetCtx.fill();
+            // Compact tag on canvas (full stats only when selected or in panel -> eliminates clutter!)
+            const tagText = isSel ? m.label : `ROI #${idx + 1}`;
+            drawNonOverlappingTag(c1.x, c1.y - 6, tagText, isSel ? '#facc15' : '#38bdf8');
+        } else if (m.type === 'roi_ellipse') {
+            targetCtx.strokeStyle = isSel ? '#facc15' : '#38bdf8';
+            const c = normToScreen((m.p1.nx + m.p2.nx) / 2, (m.p1.ny + m.p2.ny) / 2, tx);
+            const rx = Math.abs(m.p2.nx - m.p1.nx) * tx.w * tx.scale / 2;
+            const ry = Math.abs(m.p2.ny - m.p1.ny) * tx.h * tx.scale / 2;
+            targetCtx.save();
+            targetCtx.translate(c.x, c.y); targetCtx.rotate(tx.rad);
+            targetCtx.beginPath(); targetCtx.ellipse(0, 0, Math.max(2, rx), Math.max(2, ry), 0, 0, Math.PI * 2);
+            targetCtx.stroke();
+            targetCtx.fillStyle = isSel ? 'rgba(250,204,21,0.14)' : 'rgba(56,189,248,0.10)';
+            targetCtx.fill();
+            targetCtx.restore();
+            drawNonOverlappingTag(c.x - rx, c.y - ry - 6, isSel ? m.label : `ROI #${idx + 1}`, isSel ? '#facc15' : '#38bdf8');
+        } else if (m.type === 'arrow') {
+            const a = normToScreen(m.p1.nx, m.p1.ny, tx), b = normToScreen(m.p2.nx, m.p2.ny, tx);
+            targetCtx.strokeStyle = '#f43f5e'; targetCtx.fillStyle = '#f43f5e';
+            targetCtx.beginPath(); targetCtx.moveTo(a.x, a.y); targetCtx.lineTo(b.x, b.y); targetCtx.stroke();
+            const ang = Math.atan2(b.y - a.y, b.x - a.x);
+            targetCtx.beginPath(); targetCtx.moveTo(b.x, b.y);
+            targetCtx.lineTo(b.x - 10 * Math.cos(ang - 0.45), b.y - 10 * Math.sin(ang - 0.45));
+            targetCtx.lineTo(b.x - 10 * Math.cos(ang + 0.45), b.y - 10 * Math.sin(ang + 0.45));
+            targetCtx.closePath(); targetCtx.fill();
+            drawNonOverlappingTag(a.x, a.y - 6, m.label || 'Note', '#f43f5e');
+        }
+    });
+
+    // Optional Radiographic Image Marker Overlay (e.g. R / L / PA / ERECT)
+    const mk = document.getElementById('markerSelect').value;
+    if (includeAnnot && mk) {
+        const corner = normToScreen(0.05, 0.08, tx);
+        targetCtx.font = '900 18px Consolas, monospace';
+        targetCtx.fillStyle = '#facc15';
+        targetCtx.strokeStyle = '#000';
+        targetCtx.lineWidth = 3;
+        targetCtx.strokeText(mk, corner.x, corner.y);
+        targetCtx.fillText(mk, corner.x, corner.y);
+    }
+    targetCtx.restore();
+}
+
+function renderViewport() {
+    const vw = canvasWrap.clientWidth, vh = canvasWrap.clientHeight;
+    ctx.clearRect(0, 0, vw, vh);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, vw, vh);
+
+    const study = getActiveStudy();
+    if (!study) {
+        activeTransform = null;
+        document.getElementById('zoomIndicator').textContent = '100%';
+        updateHUD(null);
+        return;
+    }
+
+    const p = study.proc;
+
+    if (state.sideBySide && state.studies.length > 1) {
+        const halfW = vw / 2;
+        const txL = buildTransform(study, 0, 0, halfW - 1, vh, p);
+        activeTransform = txL;
+        drawStudyWithTransform(ctx, procCanvas, 0, 0, halfW - 1, vh, txL);
+        drawAnnotationsOnContext(ctx, study, txL, true, state.showAnnot, state.showLabels);
+
+        const other = state.studies[state.compareIdx] || study;
+        if (compareCacheId !== other.id) {
+            compareCacheCanvas.width = other.width; compareCacheCanvas.height = other.height;
+            compareCacheCtx.putImageData(other.origProxyData, 0, 0);
+            compareCacheId = other.id;
+        }
+        const txR = buildTransform(other, halfW + 1, 0, halfW - 1, vh, p); // Synchronized Zoom & Pan
+        drawStudyWithTransform(ctx, compareCacheCanvas, halfW + 1, 0, halfW - 1, vh, txR);
+        ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(halfW, 0); ctx.lineTo(halfW, vh); ctx.stroke();
+    } else {
+        const tx = buildTransform(study, 0, 0, vw, vh, p);
+        activeTransform = tx;
+        drawStudyWithTransform(ctx, procCanvas, 0, 0, vw, vh, tx);
+
+        if (state.splitCompare) {
+            const splitX = vw * state.splitPos;
+            ctx.save();
+            ctx.beginPath(); ctx.rect(0, 0, splitX, vh); ctx.clip();
+            drawStudyWithTransform(ctx, origCanvas, 0, 0, vw, vh, tx);
+            ctx.restore();
+            ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(splitX, 0); ctx.lineTo(splitX, vh); ctx.stroke();
+        }
+
+        drawAnnotationsOnContext(ctx, study, tx, true, state.showAnnot, state.showLabels);
+    }
+
+    if (state.previewWatermark) {
+        drawWatermarkOnContext(ctx, vw, vh, state.wm);
+    }
+
+    document.getElementById('zoomIndicator').textContent = `${Math.round(p.zoom * 100)}%`;
+    updateHUD(study);
+}
+
+function updateHUD(study) {
+    const tl = document.getElementById('hudTL'), tr = document.getElementById('hudTR'), bl = document.getElementById('hudBL'), br = document.getElementById('hudBR');
+    if (!study) { tl.innerHTML = tr.innerHTML = bl.innerHTML = br.innerHTML = ''; return; }
+    const p = study.proc;
+    const proj = document.getElementById('projectionSelect').value;
+    const side = document.getElementById('sideSelect').value;
+    tl.innerHTML = `RamyRay X-Ray v3.0<br>${study.origWidth}×${study.origHeight}px`;
+    tr.innerHTML = `${study.meta.modality} | ${state.anatomy}<br>${proj !== 'Unspecified' ? proj : ''} ${side !== 'N/A' ? '(' + side + ')' : ''}`;
+    bl.innerHTML = `WL:${Math.round(p.wl)} WW:${Math.round(p.ww)}<br>Zoom:${Math.round(p.zoom * 100)}%`;
+    br.innerHTML = study.isDicom
+        ? (study.meta.pixelSpacing ? 'CALIBRATED DICOM' : 'DICOM X-RAY')
+        : (study.meta.manualMmPerPx ? 'SC (MANUAL CALIB)' : '⚠️ SECONDARY CAPTURE');
+}
+
+/* ============================================================================
+   7. MEASUREMENTS MATH (CALIBRATED MM VS PX, ROI STATS, COBB, CTR)
+   ============================================================================ */
+
+function getCalibration(study) {
+    if (study.meta.manualMmPerPx) return { mmX: study.meta.manualMmPerPx, mmY: study.meta.manualMmPerPx, source: 'Manual Calibration' };
+    if (study.meta.pixelSpacing) return { mmX: study.meta.pixelSpacing.col, mmY: study.meta.pixelSpacing.row, source: 'DICOM PixelSpacing' };
+    return null;
+}
+
+function computeDistanceLabel(study, p1, p2) {
+    const dxPx = (p2.nx - p1.nx) * study.origWidth;
+    const dyPx = (p2.ny - p1.ny) * study.origHeight;
+    const cal = getCalibration(study);
+    if (cal) return `${Math.hypot(dxPx * cal.mmX, dyPx * cal.mmY).toFixed(1)} mm`;
+    return `${Math.hypot(dxPx, dyPx).toFixed(0)} px (uncal)`;
+}
+
+function computeRoiStats(study, p1, p2, isEllipse) {
+    const x1 = Math.max(0, Math.min(study.width - 1, Math.floor(Math.min(p1.nx, p2.nx) * study.width)));
+    const x2 = Math.max(0, Math.min(study.width - 1, Math.floor(Math.max(p1.nx, p2.nx) * study.width)));
+    const y1 = Math.max(0, Math.min(study.height - 1, Math.floor(Math.min(p1.ny, p2.ny) * study.height)));
+    const y2 = Math.max(0, Math.min(study.height - 1, Math.floor(Math.max(p1.ny, p2.ny) * study.height)));
+    const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+    const rx = Math.max(1, (x2 - x1) / 2), ry = Math.max(1, (y2 - y1) / 2);
+
+    let sum = 0, sumSq = 0, count = 0;
+    const src = study.origProxyData.data;
+    for (let y = y1; y <= y2; y++) {
+        for (let x = x1; x <= x2; x++) {
+            if (isEllipse) {
+                const nx = (x - cx) / rx, ny = (y - cy) / ry;
+                if (nx * nx + ny * ny > 1) continue;
+            }
+            const idx = y * study.width + x;
+            const v = study.isDicom ? study.proxyPixels[idx] : (0.299 * src[idx * 4] + 0.587 * src[idx * 4 + 1] + 0.114 * src[idx * 4 + 2]);
+            sum += v; sumSq += v * v; count++;
+        }
+    }
+    if (!count) return { label: 'ROI', detail: 'Empty ROI' };
+    const mean = sum / count;
+    const sd = Math.sqrt(Math.max(0, sumSq / count - mean * mean));
+    const rectAreaPx = Math.abs((p2.nx - p1.nx) * study.origWidth * (p2.ny - p1.ny) * study.origHeight);
+    const areaPx = isEllipse ? rectAreaPx * (Math.PI / 4) : rectAreaPx;
+    const cal = getCalibration(study);
+    const areaStr = cal ? `${(areaPx * cal.mmX * cal.mmY).toFixed(1)} mm²` : `${Math.round(areaPx)} px²`;
+    const unitTag = study.isDicom ? 'Int' : 'Gray';
+    return {
+        label: `Mean:${mean.toFixed(0)} SD:${sd.toFixed(0)} | ${areaStr}`,
+        detail: `<b>ROI (${isEllipse ? 'Ellipse' : 'Rect'}):</b> Mean ${unitTag}: ${mean.toFixed(1)} | SD: ${sd.toFixed(1)} | Area: ${areaStr} | Pixels: ${count}`
+    };
+}
+
+function updateCalibUI() {
+    const s = getActiveStudy();
+    const box = document.getElementById('calibStatusBox');
+    if (!s) { box.innerHTML = 'ارفع صورة أولاً.'; return; }
+    const cal = getCalibration(s);
+    box.innerHTML = cal
+        ? `✅ مُعاير عبر <b>${cal.source}</b> (${cal.mmX.toFixed(3)} mm/px) — القياسات بالمليمتر.`
+        : `⚠️ غير مُعاير (القياسات بالبكسل <b>px</b> فقط). استخدم "معايرة يدوية" عند توفر جسم مرجعي معروف الطول.`;
+}
+
+function renderMeasurementsList() {
+    const s = getActiveStudy();
+    const box = document.getElementById('measureList');
+    const det = document.getElementById('selectedRoiDetail');
+    if (!s || !s.measurements.length) {
+        box.innerHTML = 'لا توجد قياسات بعد.';
+        det.style.display = 'none';
+        state.selectedMeasIdx = -1;
+        return;
+    }
+    if (state.selectedMeasIdx >= s.measurements.length) state.selectedMeasIdx = -1;
+    const selM = state.selectedMeasIdx >= 0 ? s.measurements[state.selectedMeasIdx] : null;
+    if (selM && selM.detail) { det.style.display = 'block'; det.innerHTML = selM.detail; }
+    else det.style.display = 'none';
+
+    box.innerHTML = s.measurements.map((m, i) => `
+        <div class="measure-item ${i === state.selectedMeasIdx ? 'selected' : ''}" onclick="selectMeasure(${i})">
+            <span><b>#${i + 1} [${m.type.toUpperCase()}]</b> ${m.label || 'PHI Mask'}</span>
+            <button class="btn btn-danger" style="padding:2px 6px;font-size:10px;" onclick="event.stopPropagation();deleteMeasure(${i})">✕</button>
+        </div>
+    `).join('');
+}
+window.selectMeasure = (idx) => { state.selectedMeasIdx = idx; renderMeasurementsList(); renderViewport(); };
+window.deleteMeasure = (idx) => {
+    const s = getActiveStudy(); if (!s) return;
+    s.measurements.splice(idx, 1);
+    if (state.selectedMeasIdx === idx) state.selectedMeasIdx = -1;
+    renderMeasurementsList(); renderViewport();
+};
+
+/* ============================================================================
+   8. POINTER INTERACTIONS (PINCH, WHEEL, SELECT/MOVE ROI, NO DUPLICATES)
+   ============================================================================ */
+
+function getCanvasCoords(e) {
+    const r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+
+function hitTestMeasurement(study, normPt) {
+    for (let i = study.measurements.length - 1; i >= 0; i--) {
+        const m = study.measurements[i];
+        if (m.p1 && m.p2) {
+            const minX = Math.min(m.p1.nx, m.p2.nx) - 0.02, maxX = Math.max(m.p1.nx, m.p2.nx) + 0.02;
+            const minY = Math.min(m.p1.ny, m.p2.ny) - 0.02, maxY = Math.max(m.p1.ny, m.p2.ny) + 0.02;
+            if (normPt.nx >= minX && normPt.nx <= maxX && normPt.ny >= minY && normPt.ny <= maxY) return i;
+        }
+    }
+    return -1;
+}
+
+canvas.addEventListener('pointerdown', (e) => {
+    const s = getActiveStudy(); if (!s || !activeTransform) return;
+    e.preventDefault(); cancelZoomAnim();
+    canvas.setPointerCapture(e.pointerId);
+    const pt = getCanvasCoords(e);
+    activePointers.set(e.pointerId, pt);
+
+    // 2-Finger Pinch-to-Zoom
+    if (activePointers.size === 2) {
+        pointerDown = false; tempShape = null; multiPts = []; movingMeasState = null;
+        const pts = Array.from(activePointers.values());
+        pinchState = {
+            dist: Math.max(10, Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y)),
+            midX: (pts[0].x + pts[1].x) / 2, midY: (pts[0].y + pts[1].y) / 2,
+            zoom: s.proc.zoom, panX: s.proc.panX, panY: s.proc.panY
+        };
+        renderViewport(); return;
+    }
+    if (activePointers.size > 2) return;
+
+    // Double-Tap / Double-Click Zoom (Pan/WL only)
+    const now = performance.now();
+    if ((state.tool === 'pan' || state.tool === 'wl') && (now - lastTapInfo.time) < 280 && Math.hypot(pt.x - lastTapInfo.x, pt.y - lastTapInfo.y) < 26) {
+        lastTapInfo = { time: 0, x: 0, y: 0 };
+        if (s.proc.zoom > 1.35) fitToScreen(true);
+        else {
+            const tz = clampZoom(2.5);
+            const { panX, panY } = computeZoomedPan(s, tz, pt.x, pt.y);
+            animateViewportTo(s, tz, panX, panY, 190);
+        }
+        return;
+    }
+    lastTapInfo = { time: now, x: pt.x, y: pt.y };
+
+    const normPt = screenToNorm(pt.x, pt.y, activeTransform);
+
+    // Select & Drag ROI/Annotation Mode
+    if (state.tool === 'select') {
+        const hit = hitTestMeasurement(s, normPt);
+        state.selectedMeasIdx = hit;
+        if (hit >= 0) {
+            const m = s.measurements[hit];
+            movingMeasState = { idx: hit, startNorm: normPt, origP1: { ...m.p1 }, origP2: { ...m.p2 } };
+        }
+        renderMeasurementsList(); renderViewport();
+        return;
+    }
+
+    // Multi-point tools: Angle (3 pts), Cobb (4 pts = 2 lines), CTR (4 pts = Cardiac width + Thoracic width)
+    if (state.tool === 'angle' || state.tool === 'cobb' || state.tool === 'ctr') {
+        multiPts.push(normPt);
+        const needed = state.tool === 'angle' ? 3 : 4;
+        if (multiPts.length === needed) {
+            let label = '';
+            if (state.tool === 'angle') {
+                const [a, b, c] = multiPts;
+                const v1 = { x: (a.nx - b.nx) * s.origWidth, y: (a.ny - b.ny) * s.origHeight };
+                const v2 = { x: (c.nx - b.nx) * s.origWidth, y: (c.ny - b.ny) * s.origHeight };
+                const mag = Math.hypot(v1.x, v1.y) * Math.hypot(v2.x, v2.y);
+                label = `${mag > 0 ? (Math.acos(Math.max(-1, Math.min(1, (v1.x * v2.x + v1.y * v2.y) / mag))) * 180 / Math.PI).toFixed(1) : '0.0'}°`;
+            } else if (state.tool === 'cobb') {
+                const [a, b, c, d] = multiPts;
+                const ang1 = Math.atan2((b.ny - a.ny) * s.origHeight, (b.nx - a.nx) * s.origWidth);
+                const ang2 = Math.atan2((d.ny - c.ny) * s.origHeight, (d.nx - c.nx) * s.origWidth);
+                let diff = Math.abs((ang1 - ang2) * 180 / Math.PI) % 180;
+                if (diff > 90) diff = 180 - diff;
+                label = `Cobb: ${diff.toFixed(1)}°`;
+            } else if (state.tool === 'ctr') {
+                const [c1, c2, t1, t2] = multiPts;
+                const cw = Math.hypot((c2.nx - c1.nx) * s.origWidth, (c2.ny - c1.ny) * s.origHeight);
+                const tw = Math.hypot((t2.nx - t1.nx) * s.origWidth, (t2.ny - t1.ny) * s.origHeight);
+                const ratio = tw > 0 ? (cw / tw) : 0;
+                label = `CTR: ${(ratio * 100).toFixed(1)}% (${ratio.toFixed(2)})`;
+            }
+            s.measurements.push({ type: state.tool, pts: [...multiPts], label });
+            state.selectedMeasIdx = s.measurements.length - 1;
+            multiPts = []; tempShape = null;
+            renderMeasurementsList();
+            logAudit('MEASURE_' + state.tool.toUpperCase(), label);
+        } else {
+            const hint = state.tool === 'ctr' ? (multiPts.length < 2 ? 'خط القلب...' : 'خط القفص الصدري...') : `${multiPts.length}/${needed}`;
+            tempShape = { type: state.tool, pts: [...multiPts], label: hint };
+        }
+        renderViewport(); return;
+    }
+
+    pointerDown = true;
+    if (state.tool === 'pan') canvas.classList.add('dragging');
+    dragStart = { sx: pt.x, sy: pt.y, panX: s.proc.panX, panY: s.proc.panY, wl: s.proc.wl, ww: s.proc.ww, norm: normPt };
+    if (state.tool === 'wl') pushHistory(s);
+});
+
+canvas.addEventListener('pointermove', (e) => {
+    const s = getActiveStudy(); if (!s || !activeTransform || !activePointers.has(e.pointerId)) return;
+    e.preventDefault();
+    const pt = getCanvasCoords(e);
+    activePointers.set(e.pointerId, pt);
+
+    if (activePointers.size === 2 && pinchState) {
+        const pts = Array.from(activePointers.values());
+        const newDist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+        const midX = (pts[0].x + pts[1].x) / 2, midY = (pts[0].y + pts[1].y) / 2;
+        const tz = clampZoom(pinchState.zoom * (newDist / pinchState.dist));
+        const ratio = tz / Math.max(0.0001, pinchState.zoom);
+        const vx = canvasWrap.clientWidth / 2, vy = canvasWrap.clientHeight / 2;
+        s.proc.zoom = tz;
+        s.proc.panX = midX - vx - (pinchState.midX - (vx + pinchState.panX)) * ratio;
+        s.proc.panY = midY - vy - (pinchState.midY - (vy + pinchState.panY)) * ratio;
+        renderViewport(); return;
+    }
+
+    if (movingMeasState && activePointers.size === 1) {
+        const cur = screenToNorm(pt.x, pt.y, activeTransform);
+        const dnx = cur.nx - movingMeasState.startNorm.nx, dny = cur.ny - movingMeasState.startNorm.ny;
+        const m = s.measurements[movingMeasState.idx];
+        m.p1 = { nx: movingMeasState.origP1.nx + dnx, ny: movingMeasState.origP1.ny + dny };
+        m.p2 = { nx: movingMeasState.origP2.nx + dnx, ny: movingMeasState.origP2.ny + dny };
+        if (m.type === 'roi_rect' || m.type === 'roi_ellipse') {
+            const st = computeRoiStats(s, m.p1, m.p2, m.type === 'roi_ellipse');
+            m.label = st.label; m.detail = st.detail;
+        }
+        renderMeasurementsList(); renderViewport(); return;
+    }
+
+    if (!pointerDown || !dragStart || activePointers.size !== 1) return;
+    const dx = pt.x - dragStart.sx, dy = pt.y - dragStart.sy;
+
+    if (state.tool === 'pan') {
+        s.proc.panX = dragStart.panX + dx; s.proc.panY = dragStart.panY + dy;
+        renderViewport();
+    } else if (state.tool === 'wl') {
+        const sens = s.isDicom ? Math.max(1, (s.maxVal - s.minVal) / 400) : 1;
+        s.proc.ww = Math.max(10, dragStart.ww + dx * sens);
+        s.proc.wl = dragStart.wl + dy * sens;
+        syncSlidersFromStudy(s); buildProcessedProxy(s); renderViewport();
+    } else if (['dist', 'calibrate', 'roi_rect', 'roi_ellipse', 'arrow', 'mask'].includes(state.tool)) {
+        // Minimum drag threshold (8px) prevents accidental duplicate ROIs on taps!
+        if (Math.hypot(dx, dy) < 8) return;
+        const cur = screenToNorm(pt.x, pt.y, activeTransform);
+        let label = '', detail = '';
+        if (state.tool === 'dist' || state.tool === 'calibrate') label = computeDistanceLabel(s, dragStart.norm, cur);
+        else if (state.tool === 'roi_rect' || state.tool === 'roi_ellipse') {
+            const st = computeRoiStats(s, dragStart.norm, cur, state.tool === 'roi_ellipse');
+            label = st.label; detail = st.detail;
+        } else if (state.tool === 'arrow') label = 'Annotation';
+        else if (state.tool === 'mask') label = 'PHI Blackout';
+        tempShape = { type: state.tool, p1: dragStart.norm, p2: cur, label, detail };
+        renderViewport();
+    }
+});
+
+function handlePointerEnd(e) {
+    activePointers.delete(e.pointerId);
+    canvas.classList.remove('dragging');
+    movingMeasState = null;
+
+    if (pinchState && activePointers.size < 2) { pinchState = null; pointerDown = false; dragStart = null; return; }
+    if (!pointerDown) return;
+    pointerDown = false;
+
+    const s = getActiveStudy();
+    if (s && tempShape && ['dist', 'calibrate', 'roi_rect', 'roi_ellipse', 'arrow', 'mask'].includes(tempShape.type)) {
+        if (tempShape.type === 'calibrate') {
+            const pxLen = Math.hypot((tempShape.p2.nx - tempShape.p1.nx) * s.origWidth, (tempShape.p2.ny - tempShape.p1.ny) * s.origHeight);
+            const mmVal = parseFloat(prompt('أدخل الطول الحقيقي المعروف للجسم المرجعي بالمليمتر (mm):', '25'));
+            if (!isNaN(mmVal) && mmVal > 0 && pxLen > 5) {
+                s.meta.manualMmPerPx = mmVal / pxLen;
+                updateCalibUI();
+                logAudit('CALIBRATE', `${s.meta.manualMmPerPx.toFixed(4)} mm/px`);
+            }
+            tempShape = null; setTool('dist'); renderViewport(); dragStart = null; return;
+        }
+
+        if (tempShape.type === 'arrow') {
+            tempShape.label = prompt('أدخل النص التوضيحي للسهم:', 'Suspected Finding') || 'Note';
+        }
+
+        // Duplicate prevention check
+        const isDup = s.measurements.some(m =>
+            m.type === tempShape.type && m.p1 && m.p2 &&
+            Math.abs(m.p1.nx - tempShape.p1.nx) < 0.008 && Math.abs(m.p2.nx - tempShape.p2.nx) < 0.008 &&
+            Math.abs(m.p1.ny - tempShape.p1.ny) < 0.008 && Math.abs(m.p2.ny - tempShape.p2.ny) < 0.008
+        );
+        if (!isDup) {
+            s.measurements.push(tempShape);
+            state.selectedMeasIdx = s.measurements.length - 1;
+            logAudit('ADD_' + tempShape.type.toUpperCase(), tempShape.label || 'Mask');
+        }
+        tempShape = null;
+        renderMeasurementsList();
+        renderViewport();
+    }
+    dragStart = null;
+}
+canvas.addEventListener('pointerup', handlePointerEnd);
+canvas.addEventListener('pointercancel', handlePointerEnd);
+
+canvasWrap.addEventListener('wheel', (e) => {
+    const s = getActiveStudy(); if (!s) return;
+    e.preventDefault();
+    const pt = getCanvasCoords(e);
+    const sens = e.ctrlKey ? 0.008 : 0.0018;
+    const d = Math.max(-180, Math.min(180, e.deltaY));
+    zoomAroundPointInstant(s, s.proc.zoom * Math.exp(-d * sens), pt.x, pt.y);
+}, { passive: false });
+['gesturestart', 'gesturechange', 'gestureend'].forEach(ev => canvasWrap.addEventListener(ev, e => e.preventDefault(), { passive: false }));
+
+/* ============================================================================
+   9. HIGH-QUALITY FULL-NATIVE-RESOLUTION EXPORT (PNG, LOSSLESS TIFF, JPEG, DICOM-SC)
+   ============================================================================ */
+
+function buildFullResExportCanvas(study, opts) {
+    const w = study.origWidth, h = study.origHeight;
+    const baseC = document.createElement('canvas');
+    baseC.width = w; baseC.height = h;
+    const bCtx = baseC.getContext('2d');
+
+    if (opts.source === 'original') {
+        if (study.isDicom) {
+            const defP = defaultProc(study);
+            bCtx.putImageData(renderPixelsToImageData(w, h, study, defP, true), 0, 0);
+        } else {
+            bCtx.drawImage(study.fullOrigCanvas, 0, 0);
+        }
+    } else {
+        bCtx.putImageData(renderPixelsToImageData(w, h, study, study.proc, true), 0, 0);
+    }
+
+    // Apply orientation (90°/180°/270° & flips) while preserving native resolution
+    const p = study.proc;
+    const swap = (opts.source === 'processed') && (p.rot90 % 180 !== 0);
+    const outW = swap ? h : w;
+    const outH = swap ? w : h;
+
+    const outC = document.createElement('canvas');
+    outC.width = outW; outC.height = outH;
+    const oCtx = outC.getContext('2d');
+    oCtx.fillStyle = '#000';
+    oCtx.fillRect(0, 0, outW, outH);
+
+    const rad = opts.source === 'processed' ? ((p.rot90 + p.deskew) * Math.PI) / 180 : 0;
+    const fx = (opts.source === 'processed' && p.flipH) ? -1 : 1;
+    const fy = (opts.source === 'processed' && p.flipV) ? -1 : 1;
+
+    oCtx.save();
+    oCtx.translate(outW / 2, outH / 2);
+    oCtx.rotate(rad);
+    oCtx.scale(fx, fy);
+    oCtx.drawImage(baseC, -w / 2, -h / 2);
+    oCtx.restore();
+
+    const exportTx = {
+        w, h, scale: 1, cx: outW / 2, cy: outH / 2,
+        rad, cos: Math.cos(rad), sin: Math.sin(rad), flipX: fx, flipY: fy
+    };
+
+    if (opts.includeMask || opts.includeAnnot) {
+        drawAnnotationsOnContext(oCtx, study, exportTx, opts.includeMask, opts.includeAnnot, opts.includeAnnot);
+    }
+    if (opts.includeWatermark && state.wm.enabled) {
+        drawWatermarkOnContext(oCtx, outW, outH, state.wm);
+    }
+    return outC;
+}
+
+// Pure-JS Baseline Lossless Uncompressed RGB 24-bit TIFF Encoder
+function canvasToLosslessTiffBlob(srcCanvas) {
+    const w = srcCanvas.width, h = srcCanvas.height;
+    const rgba = srcCanvas.getContext('2d').getImageData(0, 0, w, h).data;
+    const pixelBytes = w * h * 3;
+    const headerAndIfdSize = 180;
+    const buf = new ArrayBuffer(headerAndIfdSize + pixelBytes);
+    const dv = new DataView(buf);
+    const u8 = new Uint8Array(buf);
+
+    // Header: Little Endian 'II', 42, IFD offset 8
+    dv.setUint8(0, 0x49); dv.setUint8(1, 0x49);
+    dv.setUint16(2, 42, true);
+    dv.setUint32(4, 8, true);
+
+    let pos = 8;
+    dv.setUint16(pos, 12, true); pos += 2; // 12 tags
+    function addTag(tag, type, count, val) {
+        dv.setUint16(pos, tag, true);
+        dv.setUint16(pos + 2, type, true);
+        dv.setUint32(pos + 4, count, true);
+        if (type === 3 && count === 1) dv.setUint16(pos + 8, val, true);
+        else dv.setUint32(pos + 8, val, true);
+        pos += 12;
+    }
+    addTag(256, 4, 1, w);             // ImageWidth
+    addTag(257, 4, 1, h);             // ImageLength
+    addTag(258, 3, 3, 158);           // BitsPerSample -> offset 158
+    addTag(259, 3, 1, 1);             // Compression = None (Lossless)
+    addTag(262, 3, 1, 2);             // Photometric = RGB
+    addTag(273, 4, 1, 180);           // StripOffsets -> 180
+    addTag(277, 3, 1, 3);             // SamplesPerPixel = 3
+    addTag(278, 4, 1, h);             // RowsPerStrip
+    addTag(279, 4, 1, pixelBytes);    // StripByteCounts
+    addTag(282, 5, 1, 164);           // XResolution -> 164
+    addTag(283, 5, 1, 172);           // YResolution -> 172
+    addTag(296, 3, 1, 2);             // ResolutionUnit = inch
+    dv.setUint32(pos, 0, true);       // Next IFD = 0
+
+    // Extra tag values
+    dv.setUint16(158, 8, true); dv.setUint16(160, 8, true); dv.setUint16(162, 8, true);
+    dv.setUint32(164, 72, true); dv.setUint32(168, 1, true);
+    dv.setUint32(172, 72, true); dv.setUint32(176, 1, true);
+
+    // Uncompressed RGB Pixel Data
+    let p = 180;
+    for (let i = 0; i < rgba.length; i += 4) {
+        u8[p++] = rgba[i]; u8[p++] = rgba[i + 1]; u8[p++] = rgba[i + 2];
+    }
+    return new Blob([buf], { type: 'image/tiff' });
+}
+
+// Pure-JS Standard DICOM Part-10 Secondary Capture Writer (DERIVED\SECONDARY)
+function canvasToDicomScBlob(srcCanvas, study) {
+    const w = srcCanvas.width, h = srcCanvas.height;
+    const rgba = srcCanvas.getContext('2d').getImageData(0, 0, w, h).data;
+    const rawRgbLen = w * h * 3;
+    const paddedRgbLen = rawRgbLen % 2 === 0 ? rawRgbLen : rawRgbLen + 1;
+
+    const enc = new TextEncoder();
+    function makeEl(group, elem, vr, dataBytes) {
+        const isLong = ['OB', 'OW', 'SQ', 'UN', 'UT'].includes(vr);
+        let bytes = dataBytes;
+        if (bytes.length % 2 !== 0) {
+            const padByte = (vr === 'UI' || vr === 'OB') ? 0x00 : 0x20;
+            const tmp = new Uint8Array(bytes.length + 1);
+            tmp.set(bytes); tmp[bytes.length] = padByte; bytes = tmp;
+        }
+        const hdrLen = isLong ? 12 : 8;
+        const out = new Uint8Array(hdrLen + bytes.length);
+        const dv = new DataView(out.buffer);
+        dv.setUint16(0, group, true); dv.setUint16(2, elem, true);
+        out[4] = vr.charCodeAt(0); out[5] = vr.charCodeAt(1);
+        if (isLong) { dv.setUint16(6, 0, true); dv.setUint32(8, bytes.length, true); }
+        else { dv.setUint16(6, bytes.length, true); }
+        out.set(bytes, hdrLen);
+        return out;
+    }
+    const strEl = (g, e, vr, s) => makeEl(g, e, vr, enc.encode(s));
+    const usEl = (g, e, v) => { const b = new Uint8Array(2); new DataView(b.buffer).setUint16(0, v, true); return makeEl(g, e, 'US', b); };
+    const ulEl = (g, e, v) => { const b = new Uint8Array(4); new DataView(b.buffer).setUint32(0, v, true); return makeEl(g, e, 'UL', b); };
+
+    const uidBase = '2.25.' + Date.now() + Math.floor(Math.random() * 90000 + 10000);
+    const sopClass = '1.2.840.10008.5.1.4.1.1.7'; // Secondary Capture Image Storage
+    const studyUid = study.meta.studyUID || (uidBase + '.1');
+    const seriesUid = uidBase + '.2';
+    const instUid = uidBase + '.3';
+    const d = new Date();
+    const da = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    const safeBody = state.anatomy.replace(/[^A-Za-z0-9 _-]/g, '').toUpperCase().slice(0, 16) || 'XRAY';
+
+    const metaParts = [
+        strEl(0x0002, 0x0002, 'UI', sopClass),
+        strEl(0x0002, 0x0003, 'UI', instUid),
+        strEl(0x0002, 0x0010, 'UI', '1.2.840.10008.1.2.1'),
+        strEl(0x0002, 0x0012, 'UI', '2.25.3000000001')
+    ];
+    const metaLen = metaParts.reduce((a, b) => a + b.length, 0);
+
+    const dsParts = [
+        strEl(0x0008, 0x0008, 'CS', 'DERIVED\\SECONDARY'),
+        strEl(0x0008, 0x0016, 'UI', sopClass),
+        strEl(0x0008, 0x0018, 'UI', instUid),
+        strEl(0x0008, 0x0020, 'DA', da),
+        strEl(0x0008, 0x0060, 'CS', (study.meta.modality || 'DX').slice(0, 4)),
+        strEl(0x0008, 0x0064, 'CS', 'WSD'),
+        strEl(0x0008, 0x0070, 'LO', 'RamyRay AI Studio X-Ray v3.0'),
+        strEl(0x0010, 0x0010, 'PN', 'DEIDENTIFIED'),
+        strEl(0x0010, 0x0020, 'LO', 'ANON'),
+        strEl(0x0018, 0x0015, 'CS', safeBody),
+        strEl(0x0020, 0x000D, 'UI', studyUid),
+        strEl(0x0020, 0x000E, 'UI', seriesUid),
+        usEl(0x0028, 0x0002, 3),
+        strEl(0x0028, 0x0004, 'CS', 'RGB'),
+        usEl(0x0028, 0x0006, 0),
+        usEl(0x0028, 0x0010, h),
+        usEl(0x0028, 0x0011, w),
+        usEl(0x0028, 0x0100, 8),
+        usEl(0x0028, 0x0101, 8),
+        usEl(0x0028, 0x0102, 7),
+        usEl(0x0028, 0x0103, 0)
+    ];
+
+    const rgbBuf = new Uint8Array(paddedRgbLen);
+    let p = 0;
+    for (let i = 0; i < rgba.length; i += 4) {
+        rgbBuf[p++] = rgba[i]; rgbBuf[p++] = rgba[i + 1]; rgbBuf[p++] = rgba[i + 2];
+    }
+    const pixelEl = makeEl(0x7FE0, 0x0010, 'OB', rgbBuf);
+
+    const preamble = new Uint8Array(132);
+    preamble[128] = 68; preamble[129] = 73; preamble[130] = 67; preamble[131] = 77; // 'DICM'
+
+    return new Blob([preamble, ulEl(0x0002, 0x0000, metaLen), ...metaParts, ...dsParts, pixelEl], { type: 'application/dicom' });
+}
+
+/* ============================================================================
+   10. REPAIRED X-RAY AI ENGINE (LIVE MODEL DISCOVERY + ROBUST PARSING)
+   ============================================================================ */
+
+document.getElementById('testApiBtn').addEventListener('click', async () => {
+    const key = (localStorage.getItem('ramyray_gemini_key') || localStorage.getItem('omniray_gemini_key') || '').trim();
+    const resBox = document.getElementById('apiTestResult');
+    if (!key) {
+        resBox.innerHTML = '<span style="color:#f87171;">⚠️ أدخل مفتاح Gemini API في الإعدادات أولاً.</span>';
+        document.getElementById('settingsModal').classList.add('open');
+        return;
+    }
+    resBox.innerHTML = '<span style="color:var(--accent);">⏳ جاري الاتصال بـ Google API وجلب النماذج المتاحة فعلياً...</span>';
+    const t0 = performance.now();
+    try {
+        const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`);
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error?.message || `HTTP ${resp.status}`);
+        const validModels = (data.models || [])
+            .filter(m => (m.supportedGenerationMethods || []).includes('generateContent') && /gemini/i.test(m.name))
+            .map(m => m.name.replace(/^models\//, ''));
+
+        if (!validModels.length) throw new Error('المفتاح يعمل لكن لم تُرجع أي نماذج generateContent.');
+        const sel = document.getElementById('aiModelSelect');
+        sel.innerHTML = validModels.map(id => `<option value="${id}">${id}</option>`).join('');
+        // Prefer flash model automatically if available
+        const best = validModels.find(id => /flash/i.test(id) && !/lite|8b/i.test(id)) || validModels[0];
+        sel.value = best;
+
+        const ms = Math.round(performance.now() - t0);
+        resBox.innerHTML = `<span style="color:var(--ok);">✅ الاتصال سليم (${ms}ms) — تم جلب ${validModels.length} نموذجاً متاحاً وتحديد <b>${best}</b>.</span>`;
+        logAudit('API_TEST_OK', `${validModels.length} models (${ms}ms)`);
+    } catch (err) {
+        resBox.innerHTML = `<span style="color:#f87171;">❌ فشل الفحص: ${err.message}</span>`;
+        logAudit('API_TEST_ERR', err.message);
+    }
+});
+
+function stopAiState() {
+    if (state.aiTimerInterval) { clearInterval(state.aiTimerInterval); state.aiTimerInterval = null; }
+    state.aiAbortController = null;
+    const btn = document.getElementById('runAiBtn');
+    btn.disabled = false; btn.textContent = '🧠 إعادة تحليل الأشعة';
+    document.getElementById('cancelAiBtn').style.display = 'none';
+}
+
+document.getElementById('cancelAiBtn').addEventListener('click', () => {
+    if (state.aiAbortController) state.aiAbortController.abort();
+});
+
+document.getElementById('runAiBtn').addEventListener('click', async () => {
+    const study = getActiveStudy();
+    if (!study) { alert('يرجى رفع صورة أشعة سينية أولاً.'); return; }
+    if (!document.getElementById('phiConfirmCheck').checked) {
+        alert('لحماية خصوصية المريض: يرجى تأكيد إزالة/تغطية بيانات المريض (PHI) بتفعيل مربع التأكيد أولاً. يمكنك استخدام أداة "⬛ إخفاء PHI" لتغطية الاسم على الشاشة.');
+        return;
+    }
+
+    const backendUrl = (localStorage.getItem('ramyray_backend_url') || '').trim();
+    const apiKey = (localStorage.getItem('ramyray_gemini_key') || localStorage.getItem('omniray_gemini_key') || '').trim();
+    if (!backendUrl && !apiKey) {
+        document.getElementById('settingsModal').classList.add('open');
+        return;
+    }
+
+    const modelId = document.getElementById('aiModelSelect').value;
+    const btn = document.getElementById('runAiBtn'), cancelBtn = document.getElementById('cancelAiBtn');
+    const statusBox = document.getElementById('aiStatusBox');
+
+    if (state.aiAbortController) state.aiAbortController.abort();
+    const controller = new AbortController();
+    state.aiAbortController = controller;
+
+    let elapsed = 0;
+    btn.disabled = true; cancelBtn.style.display = 'inline-flex';
+    btn.textContent = '⏳ جاري التحليل (0ث)...';
+    statusBox.innerHTML = `<div class="info-banner">⏳ يتم ضغط الصورة المُجهَّزة مع أشرطة إخفاء PHI وإرسالها إلى <b>${backendUrl ? 'Custom FastAPI Backend' : modelId}</b>...</div>`;
+    state.aiTimerInterval = setInterval(() => { elapsed++; btn.textContent = `⏳ جاري التحليل (${elapsed}ث / 45ث)...`; }, 1000);
+    const timeoutId = setTimeout(() => controller.abort(), 45000);
+
+    // Prepare de-identified compressed JPEG (with PHI blackout masks applied, max 960px)
+    const tmpC = document.createElement('canvas');
+    const sc = Math.min(1, 960 / Math.max(study.width, study.height));
+    tmpC.width = Math.max(1, Math.round(study.width * sc));
+    tmpC.height = Math.max(1, Math.round(study.height * sc));
+    const tCtx = tmpC.getContext('2d');
+    tCtx.drawImage(procCanvas, 0, 0, tmpC.width, tmpC.height);
+    const maskTx = { w: study.width, h: study.height, scale: sc, cx: tmpC.width / 2, cy: tmpC.height / 2, rad: 0, cos: 1, sin: 0, flipX: 1, flipY: 1 };
+    drawAnnotationsOnContext(tCtx, study, maskTx, true, false, false);
+    const b64 = tmpC.toDataURL('image/jpeg', 0.80).split(',')[1];
+
+    const lang = document.getElementById('aiLangSelect').value;
+    const langRule = lang === 'ar' ? 'Write in clear medical Arabic keeping key English radiological terms in parentheses.' : 'Write in formal clinical English.';
+    const prompt = `You are an X-Ray (Conventional Projection Radiography ONLY) clinical decision support assistant.
+Context: Modality=${study.meta.modality}, Anatomy=${state.anatomy}, Projection=${document.getElementById('projectionSelect').value}, Position=${document.getElementById('positionSelect').value}, Laterality=${document.getElementById('sideSelect').value}, Profile=${document.getElementById('profileSelect').value}, Indication=${document.getElementById('clinicalIndication').value || 'None'}, Source=${study.isDicom ? 'DICOM X-Ray' : 'Secondary Capture (uncalibrated)'}.
+
+SAFETY RULES:
+1. Verify if this is a conventional X-Ray radiograph. If not, set is_xray=false.
+2. NEVER fabricate findings, NEVER invent confidence percentages, and NEVER claim to be a validated medical CAD device.
+3. Explicitly state image quality and diagnostic limitations (especially if Secondary Capture).
+4. ${langRule}
+
+Return ONLY valid JSON:
+{"is_xray":true,"image_info":"","image_quality":"","anatomical_region":"","findings":[{"title":"","location":"","description":""}],"differential_considerations":"","uncertainty_and_limitations":"","draft_impression":"","draft_recommendations":""}`;
+
+    try {
+        let resp, data, parsed;
+        if (backendUrl) {
+            resp = await fetch(backendUrl, {
+                method: 'POST', signal: controller.signal,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image_base64: b64, modality: study.meta.modality, anatomy: state.anatomy, prompt })
+            });
+            clearTimeout(timeoutId);
+            data = await resp.json();
+            if (!resp.ok) throw new Error(data.detail || data.error || `HTTP ${resp.status}`);
+            parsed = data;
+        } else {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelId)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+            resp = await fetch(url, {
+                method: 'POST', signal: controller.signal,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: 'image/jpeg', data: b64 } }] }],
+                    generationConfig: { responseMimeType: 'application/json', temperature: 0.2 }
+                })
+            });
+            clearTimeout(timeoutId);
+            data = await resp.json();
+            if (!resp.ok) throw new Error(data.error?.message || `HTTP ${resp.status}`);
+            let rawText = data.candidates?.[0]?.content?.parts?.map(p => p.text).join('') || '';
+            rawText = rawText.replace(/^```json\s*/i, '').replace(/```$/i, '').trim();
+            try { parsed = JSON.parse(rawText); }
+            catch {
+                parsed = { is_xray: true, image_info: study.meta.modality, image_quality: '—', anatomical_region: state.anatomy, findings: [{ title: 'AI Observation', location: state.anatomy, description: rawText || 'No structured response.' }], differential_considerations: '—', uncertainty_and_limitations: 'Unstructured API output.', draft_impression: 'Review manually.', draft_recommendations: '' };
+            }
+        }
+
+        study.aiMeta = { ...parsed, modelUsed: backendUrl ? 'Custom Backend' : modelId, timestamp: new Date().toLocaleTimeString('en-GB') };
+        study.aiFindings = (parsed.findings || []).map((f, i) => ({ ...f, id: i, status: 'pending' }));
+
+        state.aiHistory.unshift({ time: study.aiMeta.timestamp, anatomy: state.anatomy, model: study.aiMeta.modelUsed, count: study.aiFindings.length });
+        renderAiHistory();
+        statusBox.innerHTML = `<div class="ok-banner">✅ اكتمل التحليل خلال ${elapsed} ثانية عبر <b>${study.aiMeta.modelUsed}</b>.</div>`;
+        renderAiResultsUI();
+        logAudit('AI_OK', `${study.aiMeta.modelUsed} in ${elapsed}s`);
+    } catch (err) {
+        clearTimeout(timeoutId);
+        const msg = err.name === 'AbortError'
+            ? 'انتهت مهلة الاتصال (45ث) أو تم الإلغاء. تأكد من استقرار الشبكة أو اضغط "🔍 فحص النماذج" ثم أعد المحاولة.'
+            : err.message;
+        statusBox.innerHTML = `<div class="err-banner">❌ ${msg}<br><button class="btn" style="margin-top:6px;" onclick="document.getElementById('runAiBtn').click()">🔄 إعادة المحاولة (Retry)</button></div>`;
+        logAudit('AI_ERR', msg);
+    } finally {
+        stopAiState();
+    }
+});
+
+function renderAiResultsUI() {
+    const study = getActiveStudy();
+    const box = document.getElementById('aiResultsContainer');
+    if (!study || !study.aiMeta) {
+        box.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:11.5px;padding:12px;">لا توجد نتائج تحليل لهذه الصورة بعد.</div>';
+        return;
+    }
+    const m = study.aiMeta;
+    if (m.is_xray === false) {
+        box.innerHTML = '<div class="warn-banner">⚠️ الصورة لا تبدو كصورة أشعة سينية تقليدية (X-Ray) صالحة للتحليل.</div>';
+        return;
+    }
+    let html = `
+        <div class="section-card" style="font-size:11.5px;line-height:1.5;">
+            <div><b>النموذج المستخدم:</b> ${m.modelUsed}</div>
+            <div><b>معلومات الصورة:</b> ${m.image_info || '—'}</div>
+            <div><b>جودة الصورة:</b> ${m.image_quality || '—'}</div>
+            <div><b>المنطقة التشريحية:</b> ${m.anatomical_region || state.anatomy}</div>
+        </div>
+    `;
+    html += study.aiFindings.map((f, idx) => `
+        <div class="finding-card ${f.status}">
+            <div><b>#${idx + 1} ${f.title}</b></div>
+            <div style="font-size:10.5px;color:var(--accent);margin:2px 0;">📍 ${f.location || '—'}</div>
+            <div>${f.description}</div>
+            <div class="finding-actions">
+                <button class="btn btn-ok" onclick="setFindingStatus(${idx},'accepted')">✓ قبول</button>
+                <button class="btn btn-danger" onclick="setFindingStatus(${idx},'rejected')">✕ رفض</button>
+                <button class="btn" onclick="editFinding(${idx})">✎ تعديل</button>
+            </div>
+        </div>
+    `).join('');
+    html += `
+        <div class="section-card" style="font-size:11.5px;line-height:1.5;">
+            <b>التشخيصات التفريقية (Differentials):</b><br>${m.differential_considerations || '—'}<br><br>
+            <b>الشك والقيود (Uncertainty & Limitations):</b><br><span style="color:var(--warn);">${m.uncertainty_and_limitations || 'General-purpose VLM; requires radiologist confirmation.'}</span><br><br>
+            <b>مسودة الخلاصة (Draft Impression):</b><br>${m.draft_impression || '—'}
+        </div>
+    `;
+    box.innerHTML = html;
+}
+window.setFindingStatus = (idx, st) => { const s = getActiveStudy(); if (!s || !s.aiFindings[idx]) return; s.aiFindings[idx].status = st; renderAiResultsUI(); };
+window.editFinding = (idx) => {
+    const s = getActiveStudy(); if (!s || !s.aiFindings[idx]) return;
+    const upd = prompt('تعديل الملاحظة السريرية:', s.aiFindings[idx].description);
+    if (upd !== null) { s.aiFindings[idx].description = upd; s.aiFindings[idx].status = 'accepted'; renderAiResultsUI(); }
+};
+function renderAiHistory() {
+    const card = document.getElementById('aiHistoryCard');
+    card.style.display = state.aiHistory.length ? 'block' : 'none';
+    document.getElementById('aiHistoryList').innerHTML = state.aiHistory.slice(0, 8).map(h =>
+        `<div style="padding:3px 0;border-bottom:1px solid var(--border);">[${h.time}] <b>${h.anatomy}</b> — ${h.model} (${h.count} ملاحظات)</div>`
+    ).join('');
+}
+
+/* ============================================================================
+   11. QUALITY CONTROL (QC) + ANATOMY + TEMPLATES + UI WIRING
+   ============================================================================ */
+
+function updateQualityControl(study) {
+    const autoBox = document.getElementById('qcAutoBox');
+    const grp = state.anatomy.includes('Chest') || state.anatomy === 'Lungs' ? 'Chest'
+        : state.anatomy.includes('Spine') ? 'Spine'
+        : ['Shoulder','Humerus','Elbow','Forearm','Wrist','Hand','Fingers','Pelvis','Hip','Femur','Knee','Patella','Tibia','Fibula','Ankle','Foot','Toes','Calcaneus'].includes(state.anatomy) ? 'Extremity'
+        : 'General';
+
+    document.getElementById('qcRegionTitle').textContent = `${state.anatomy} (${grp})`;
+    document.getElementById('qcChecklistBox').innerHTML = (QC_CHECKLISTS[grp] || QC_CHECKLISTS.General).map((item, i) => `
+        <label class="qc-item"><input type="checkbox" class="qc-chk" data-label="${item}"> <span>${item}</span></label>
+    `).join('');
+
+    const guideKey = grp === 'General' ? (state.anatomy.includes('Abdomen') || state.anatomy === 'KUB' ? 'Abdomen' : 'Skull') : grp;
+    document.getElementById('posGuideContent').innerHTML = POS_GUIDES[guideKey] || POS_GUIDES.Chest;
+
+    if (!study) { autoBox.innerHTML = 'ارفع صورة أشعة لإجراء الفحص التقني المساعد.'; return; }
+
+    // Heuristic brightness clipping & edge sharpness estimate (transparently labeled!)
+    const data = study.origProxyData.data;
+    const total = study.width * study.height;
+    let clippedWhite = 0, clippedBlack = 0, edgeSum = 0;
+    for (let i = 0; i < data.length; i += 16) {
+        const l = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        if (l > 248) clippedWhite++;
+        if (l < 7) clippedBlack++;
+    }
+    const sampled = Math.max(1, Math.floor(total / 4));
+    const whitePct = ((clippedWhite / sampled) * 100).toFixed(1);
+    const blackPct = ((clippedBlack / sampled) * 100).toFixed(1);
+
+    autoBox.innerHTML = `
+        <div><b>الأبعاد الأصلية:</b> ${study.origWidth} × ${study.origHeight} px</div>
+        <div><b>المصدر:</b> ${study.isDicom ? `DICOM ${study.meta.modality} (${study.meta.bitsAllocated}-bit)` : '⚠️ Secondary Capture (لا تتوفر بيانات Exposure Index)'}</div>
+        <div><b>تقدير التشبع البصري:</b> مناطق بيضاء مشبعة ${whitePct}% | سوداء ${blackPct}%</div>
+        ${study.meta.kvp ? `<div><b>DICOM Exposure:</b> ${study.meta.kvp} kVp ${study.meta.mas ? '| ' + study.meta.mas + ' mAs' : ''}</div>` : ''}
+    `;
+}
+
+function initAnatomyAndTemplates() {
+    // Anatomy Chips grouped
+    const container = document.getElementById('anatomyGroupedChips');
+    container.innerHTML = Object.entries(ANATOMY_GROUPS).map(([grp, parts]) => `
+        <div class="anatomy-group-title">${grp}</div>
+        <div class="anatomy-chips">${parts.map(p => `<span class="chip ${p === state.anatomy ? 'selected' : ''}" data-part="${p}">${p}</span>`).join('')}</div>
+    `).join('');
+
+    const selectPart = (part, side) => {
+        state.anatomy = part;
+        if (side) document.getElementById('sideSelect').value = side;
+        document.querySelectorAll('.body-zone').forEach(z => z.classList.toggle('selected', z.dataset.part === part));
+        document.querySelectorAll('.chip').forEach(c => c.classList.toggle('selected', c.dataset.part === part));
+        autoSelectTemplate(); updateReportExamHeader(); updateQualityControl(getActiveStudy()); renderViewport();
+    };
+    document.querySelectorAll('.body-zone').forEach(z => z.addEventListener('click', () => selectPart(z.dataset.part, z.dataset.side)));
+    container.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => selectPart(c.dataset.part)));
+
+    document.getElementById('bodyViewToggle').addEventListener('click', () => {
+        state.bodyBack = !state.bodyBack;
+        document.getElementById('bodyViewLabel').textContent = state.bodyBack ? 'المنظور الخلفي (Posterior View — Spine Focus)' : 'المنظور الأمامي (Anterior View)';
+    });
+
+    // Populate 18 X-Ray templates
+    const sel = document.getElementById('templateSelect');
+    sel.innerHTML = Object.entries(XRAY_TEMPLATES).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join('');
+}
+
+function autoSelectTemplate() {
+    const a = state.anatomy.toLowerCase();
+    const prof = document.getElementById('profileSelect').value;
+    const sel = document.getElementById('templateSelect');
+    if (prof === 'Pediatric') sel.value = 'pediatric';
+    else if (a.includes('chest') || a.includes('lung') || a.includes('rib')) sel.value = 'chest';
+    else if (a.includes('abdomen') || a.includes('kub')) sel.value = 'abdomen';
+    else if (a.includes('skull') || a.includes('facial') || a.includes('nasal') || a.includes('sinus') || a.includes('mandible')) sel.value = 'skull';
+    else if (a.includes('cervical')) sel.value = 'cspine';
+    else if (a.includes('thoracic')) sel.value = 'tspine';
+    else if (a.includes('lumbar') || a.includes('sacrum') || a.includes('coccyx')) sel.value = 'lspine';
+    else if (a.includes('pelvis')) sel.value = 'pelvis';
+    else if (a.includes('shoulder') || a.includes('clavicle') || a.includes('scapula') || a.includes('humerus')) sel.value = 'shoulder';
+    else if (a.includes('elbow')) sel.value = 'elbow';
+    else if (a.includes('wrist') || a.includes('forearm')) sel.value = 'wrist';
+    else if (a.includes('hand') || a.includes('finger')) sel.value = 'hand';
+    else if (a.includes('hip')) sel.value = 'hip';
+    else if (a.includes('femur')) sel.value = 'femur';
+    else if (a.includes('knee') || a.includes('patella')) sel.value = 'knee';
+    else if (a.includes('tibia') || a.includes('fibula')) sel.value = 'leg';
+    else if (a.includes('ankle')) sel.value = 'ankle';
+    else sel.value = 'foot';
+}
+
+function updateReportExamHeader() {
+    const s = getActiveStudy();
+    document.getElementById('repExamInfo').value = `X-Ray (${document.getElementById('modalitySelect').value}) | ${state.anatomy} | Proj: ${document.getElementById('projectionSelect').value} | Pos: ${document.getElementById('positionSelect').value} | Side: ${document.getElementById('sideSelect').value} | ${document.getElementById('profileSelect').value}`;
+    if (s) {
+        document.getElementById('dicomMetaViewer').innerHTML = s.isDicom
+            ? `Modality: ${s.meta.modality}<br>Dimensions: ${s.origWidth} × ${s.origHeight} (${s.meta.bitsAllocated}-bit)<br>BodyPart: ${s.meta.bodyPart || '—'} | View: ${s.meta.viewPos || '—'}<br>Laterality: ${s.meta.laterality || '—'} | kVp: ${s.meta.kvp || '—'} | mAs: ${s.meta.mas || '—'}<br>PixelSpacing: ${s.meta.pixelSpacing ? s.meta.pixelSpacing.row + '×' + s.meta.pixelSpacing.col + ' mm' : 'Not Present'}<br>Detector: ${s.meta.detector || '—'}`
+            : `Source: ${s.captureType}<br>Native Resolution: ${s.origWidth} × ${s.origHeight} px<br>Calibration: Uncalibrated (unless manually calibrated)`;
+    }
+}
+
+function renderStudyList() {
+    const list = document.getElementById('studyList'), cmpSel = document.getElementById('compareSelect');
+    if (!state.studies.length) {
+        list.innerHTML = '<div style="text-align:center;font-size:11px;color:var(--muted);padding:14px 6px;">لا توجد صور أشعة محمّلة بعد.</div>';
+        cmpSel.innerHTML = ''; return;
+    }
+    list.innerHTML = state.studies.map((s, idx) => `
+        <div class="study-item ${idx === state.activeIdx ? 'active' : ''}" data-idx="${idx}">
+            <img class="study-thumb" src="${s.thumbUrl}" alt="">
+            <div class="study-meta">
+                <b title="${s.name}">${s.name}</b>
+                <span style="color:var(--muted);">${s.origWidth}×${s.origHeight}</span><br>
+                ${s.isDicom ? `<span class="badge badge-dicom">DICOM ${s.meta.modality}</span>` : `<span class="badge badge-sec">Secondary Capture</span>`}
+            </div>
+        </div>
+    `).join('');
+    list.querySelectorAll('.study-item').forEach(el => el.addEventListener('click', () => selectStudy(parseInt(el.dataset.idx))));
+    cmpSel.innerHTML = state.studies.map((s, idx) => `<option value="${idx}" ${idx === state.compareIdx ? 'selected' : ''}>#${idx + 1} ${s.name.slice(0, 16)}</option>`).join('');
+}
+
+function selectStudy(idx) {
+    if (idx < 0 || idx >= state.studies.length) return;
+    cancelZoomAnim();
+    state.activeIdx = idx;
+    state.selectedMeasIdx = -1;
+    if (state.compareIdx < 0 || state.compareIdx === idx) state.compareIdx = state.studies.length > 1 ? (idx === 0 ? 1 : 0) : idx;
+    const s = getActiveStudy();
+    document.getElementById('emptyState').style.display = 'none';
+
+    const slWL = document.getElementById('slWL'), slWW = document.getElementById('slWW');
+    if (s.isDicom) {
+        slWL.min = Math.floor(s.minVal - 200); slWL.max = Math.ceil(s.maxVal + 200);
+        slWW.min = 10; slWW.max = Math.max(100, Math.ceil((s.maxVal - s.minVal) * 1.5));
+    } else {
+        slWL.min = 0; slWL.max = 255; slWW.min = 10; slWW.max = 512;
+    }
+    syncSlidersFromStudy(s);
+    buildProcessedProxy(s);
+    renderStudyList(); updateNavControls(); updateCalibUI();
+    renderMeasurementsList(); renderAiResultsUI(); updateQualityControl(s); updateReportExamHeader();
+    renderViewport();
+}
+
+function syncSlidersFromStudy(s) {
+    const p = s.proc;
+    const set = (id, v, vid, txt) => { document.getElementById(id).value = v; document.getElementById(vid).textContent = txt; };
+    set('slWL', p.wl, 'valWL', Math.round(p.wl));
+    set('slWW', p.ww, 'valWW', Math.round(p.ww));
+    set('slBright', p.brightness, 'valBright', p.brightness);
+    set('slContrast', p.contrast, 'valContrast', p.contrast + '%');
+    set('slExp', p.exposure, 'valExp', p.exposure + '%');
+    set('slGamma', Math.round(p.gamma * 100), 'valGamma', p.gamma.toFixed(2));
+    set('slSharpen', p.sharpen, 'valSharpen', p.sharpen + '%');
+    set('slDenoise', p.denoise, 'valDenoise', p.denoise + '%');
+    set('slGlare', p.glare, 'valGlare', p.glare + '%');
+    set('slDeskew', p.deskew, 'valDeskew', p.deskew + '°');
+    set('slBorder', p.borderCrop, 'valBorder', p.borderCrop + '%');
+    document.getElementById('btnClahe').classList.toggle('active', p.clahe);
+    document.getElementById('btnHistEq').classList.toggle('active', p.histEq);
+    document.getElementById('btnNorm').classList.toggle('active', p.normalize);
+    document.getElementById('btnGray').classList.toggle('active', p.grayscale);
+    document.getElementById('invertQuickBtn').classList.toggle('active', p.invert);
+}
+
+function updateNavControls() {
+    const n = state.studies.length, sl = document.getElementById('sliceSlider');
+    sl.max = Math.max(0, n - 1); sl.value = Math.max(0, state.activeIdx); sl.disabled = n < 2;
+    document.getElementById('prevImgBtn').disabled = state.activeIdx <= 0;
+    document.getElementById('nextImgBtn').disabled = state.activeIdx >= n - 1;
+    document.getElementById('sliceLabel').textContent = `الصورة: ${n ? state.activeIdx + 1 : 0} / ${n}`;
+}
+
+function setTool(t) {
+    state.tool = t; multiPts = []; tempShape = null;
+    document.querySelectorAll('[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === t));
+    canvas.style.cursor = t === 'pan' ? 'grab' : t === 'select' ? 'pointer' : t === 'wl' ? 'ns-resize' : 'crosshair';
+}
+
+/* ============================================================================
+   12. EVENT WIRING
+   ============================================================================ */
+
+document.getElementById('fileInput').addEventListener('change', e => { handleFiles(e.target.files, false); e.target.value = ''; });
+document.getElementById('cameraInput').addEventListener('change', e => { handleFiles(e.target.files, true); e.target.value = ''; });
+const dz = document.getElementById('dropzone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dragover'); handleFiles(e.dataTransfer.files, false); });
+
+document.getElementById('clearStudiesBtn').addEventListener('click', () => {
+    if (!state.studies.length || !confirm('مسح جميع الصور المحمّلة؟')) return;
+    cancelZoomAnim(); state.studies = []; state.activeIdx = -1; state.compareIdx = -1; compareCacheId = null;
+    document.getElementById('emptyState').style.display = 'block';
+    renderStudyList(); updateNavControls(); renderViewport();
+});
+
+document.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
+document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-body').forEach(tb => tb.classList.remove('active'));
+    btn.classList.add('active'); document.getElementById(btn.dataset.tab).classList.add('active');
+}));
+
+// Zoom & Geometry buttons
+document.getElementById('zoomInBtn').addEventListener('click', () => smoothZoomByFactor(1.3));
+document.getElementById('zoomOutBtn').addEventListener('click', () => smoothZoomByFactor(1 / 1.3));
+document.getElementById('fitScreenBtn').addEventListener('click', () => fitToScreen(true));
+document.getElementById('zoomIndicator').addEventListener('click', () => fitToScreen(true));
+document.getElementById('actualSizeBtn').addEventListener('click', () => zoomToActualSize());
+document.getElementById('resetZoomBtn').addEventListener('click', () => fitToScreen(true));
+
+document.getElementById('rotLeftBtn').addEventListener('click', () => { const s = getActiveStudy(); if (!s) return; pushHistory(s); s.proc.rot90 = (s.proc.rot90 + 90) % 360; renderViewport(); });
+document.getElementById('flipHBtn').addEventListener('click', () => { const s = getActiveStudy(); if (!s) return; pushHistory(s); s.proc.flipH = !s.proc.flipH; renderViewport(); });
+document.getElementById('flipVBtn').addEventListener('click', () => { const s = getActiveStudy(); if (!s) return; pushHistory(s); s.proc.flipV = !s.proc.flipV; renderViewport(); });
+document.getElementById('undoBtn').addEventListener('click', () => { const s = getActiveStudy(); if (!s || !s.undoStack.length) return; s.redoStack.push(JSON.stringify(s.proc)); s.proc = JSON.parse(s.undoStack.pop()); syncSlidersFromStudy(s); buildProcessedProxy(s); renderViewport(); });
+document.getElementById('redoBtn').addEventListener('click', () => { const s = getActiveStudy(); if (!s || !s.redoStack.length) return; s.undoStack.push(JSON.stringify(s.proc)); s.proc = JSON.parse(s.redoStack.pop()); syncSlidersFromStudy(s); buildProcessedProxy(s); renderViewport(); });
+document.getElementById('resetViewBtn').addEventListener('click', () => { const s = getActiveStudy(); if (!s) return; cancelZoomAnim(); pushHistory(s); s.proc = defaultProc(s); syncSlidersFromStudy(s); buildProcessedProxy(s); renderViewport(); });
+
+// Measurement Management Buttons
+document.getElementById('delSelectedMeasBtn').addEventListener('click', () => { if (state.selectedMeasIdx >= 0) deleteMeasure(state.selectedMeasIdx); });
+document.getElementById('undoLastMeasBtn').addEventListener('click', () => { const s = getActiveStudy(); if (!s || !s.measurements.length) return; s.measurements.pop(); state.selectedMeasIdx = -1; renderMeasurementsList(); renderViewport(); });
+document.getElementById('clearMeasureBtn').addEventListener('click', () => { const s = getActiveStudy(); if (!s) return; s.measurements = []; state.selectedMeasIdx = -1; renderMeasurementsList(); renderViewport(); });
+document.getElementById('startCalibBtn').addEventListener('click', () => { setTool('calibrate'); alert('ارسم خطاً على جسم مرجعي معروف الطول على الصورة ثم أدخل طوله بالمليمتر.'); });
+document.getElementById('resetCalibBtn').addEventListener('click', () => { const s = getActiveStudy(); if (!s) return; s.meta.manualMmPerPx = null; updateCalibUI(); renderViewport(); });
+
+// Visibility & Comparison Toggles
+document.getElementById('toggleAnnotBtn').addEventListener('click', e => { state.showAnnot = !state.showAnnot; e.target.classList// Visibility & Comparison Toggles
+document.getElementById('toggleAnnotBtn')?.addEventListener('click', e => {
+    state.showAnnot = !state.showAnnot;
+    e.currentTarget.classList.toggle('active', state.showAnnot);
+    renderViewport();
+});
+
+document.getElementById('toggleLabelsBtn')?.addEventListener('click', e => {
+    state.showLabels = !state.showLabels;
+    e.currentTarget.classList.toggle('active', state.showLabels);
+    renderViewport();
+});
+
+document.getElementById('toggleBoxesBtn')?.addEventListener('click', e => {
+    state.showBoxes = !state.showBoxes;
+    e.currentTarget.classList.toggle('active', state.showBoxes);
+    renderViewport();
+});
+
+document.getElementById('toggleHeatmapBtn')?.addEventListener('click', e => {
+    state.showHeatmap = !state.showHeatmap;
+    e.currentTarget.classList.toggle('active', state.showHeatmap);
+    renderViewport();
+});
+
+// Before/After Split & Side-by-Side Comparison
+document.getElementById('splitCompareBtn')?.addEventListener('click', e => {
+    state.splitCompare = !state.splitCompare;
+    if (state.splitCompare) state.sideBySide = false;
+    e.currentTarget.classList.toggle('active', state.splitCompare);
+    document.getElementById('sideBySideBtn')?.classList.remove('active');
+    const splitWrap = document.getElementById('splitCtrlWrap');
+    const cmpWrap = document.getElementById('compareSelectWrap');
+    if (splitWrap) splitWrap.style.display = state.splitCompare ? 'inline-flex' : 'none';
+    if (cmpWrap) cmpWrap.style.display = 'none';
+    renderViewport();
+});
+
+document.getElementById('splitSlider')?.addEventListener('input', e => {
+    state.splitPos = Number(e.target.value) / 100;
+    renderViewport();
+});
+
+document.getElementById('sideBySideBtn')?.addEventListener('click', e => {
+    if (!state.studies || state.studies.length < 2) {
+        alert('ارفع صورتين على الأقل لتفعيل المقارنة جنباً إلى جنب.');
+        return;
+    }
+    state.sideBySide = !state.sideBySide;
+    if (state.sideBySide) state.splitCompare = false;
+    e.currentTarget.classList.toggle('active', state.sideBySide);
+    document.getElementById('splitCompareBtn')?.classList.remove('active');
+    const splitWrap = document.getElementById('splitCtrlWrap');
+    const cmpWrap = document.getElementById('compareSelectWrap');
+    if (cmpWrap) cmpWrap.style.display = state.sideBySide ? 'inline-flex' : 'none';
+    if (splitWrap) splitWrap.style.display = 'none';
+    renderViewport();
+});
+
+document.getElementById('compareSelect')?.addEventListener('change', e => {
+    state.compareIdx = parseInt(e.target.value, 10);
+    renderViewport();
+});
+
+// Study / Series Navigation & Cine Playback
+document.getElementById('sliceSlider')?.addEventListener('input', e => {
+    if (typeof selectStudy === 'function') selectStudy(parseInt(e.target.value, 10));
+});
+
+document.getElementById('cinePlayBtn')?.addEventListener('click', e => {
+    if (state.cineTimer) {
+        clearInterval(state.cineTimer);
+        state.cineTimer = null;
+        e.currentTarget.textContent = '▶️ Cine';
+    } else if (state.studies.length > 1) {
+        e.currentTarget.textContent = '⏸️ إيقاف';
+        state.cineTimer = setInterval(() => {
+            if (typeof selectStudy === 'function') {
+                selectStudy((state.activeIdx + 1) % state.studies.length);
+            }
+        }, 320);
+    }
+});
+
+// Quick PNG Export (if Export Modal is not handling exportImgBtn)
+document.getElementById('exportImgBtn')?.addEventListener('click', () => {
+    if (typeof openExportModal === 'function') {
+        openExportModal();
+        return;
+    }
+    const s = typeof getActiveStudy === 'function' ? getActiveStudy() : null;
+    if (!s || typeof canvas === 'undefined') return;
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = `RamyRay_${s.name.replace(/\.[^/.]+$/, '')}_processed.png`;
+    a.click();
+    if (typeof logAudit === 'function') logAudit('EXPORT_PNG', a.download);
+});
+
+// Theme & Fullscreen Controls
+document.getElementById('themeBtn')?.addEventListener('click', () => {
+    document.body.classList.toggle('light-theme');
+});
+
+document.getElementById('fullscreenBtn')?.addEventListener('click', () => {
+    const sec = document.getElementById('viewportSection');
+    if (!sec) return;
+    if (!document.fullscreenElement) sec.requestFullscreen?.();
+    else document.exitFullscreen?.();
+});
+
+// Settings Modal, Local API Key & Zoom Limits
+const settingsModal = document.getElementById('settingsModal');
+document.getElementById('settingsBtn')?.addEventListener('click', () => settingsModal?.classList.add('open'));
+document.getElementById('closeSettingsBtn')?.addEventListener('click', () => settingsModal?.classList.remove('open'));
+settingsModal?.addEventListener('click', e => {
+    if (e.target === settingsModal) settingsModal.classList.remove('open');
+});
+
+const savedApiKey = localStorage.getItem('ramyray_gemini_key') || localStorage.getItem('omniray_gemini_key');
+if (savedApiKey) {
+    const keyInput = document.getElementById('apiKeyInput');
+    const keyMsg = document.getElementById('keyStatusMsg');
+    if (keyInput) keyInput.value = savedApiKey;
+    if (keyMsg) keyMsg.innerHTML = '<span style="color:#4ade80;">✅ المفتاح محفوظ ومفعّل محلياً.</span>';
+}
+
+document.getElementById('saveKeyBtn')?.addEventListener('click', () => {
+    const keyInput = document.getElementById('apiKeyInput');
+    const keyMsg = document.getElementById('keyStatusMsg');
+    const k = keyInput?.value.trim();
+    if (!k) return;
+    localStorage.setItem('ramyray_gemini_key', k);
+    if (keyMsg) keyMsg.innerHTML = '<span style="color:#4ade80;">✅ تم الحفظ بأمان على جهازك فقط.</span>';
+    if (typeof logAudit === 'function') logAudit('API_KEY', 'Updated local API key');
+});
+
+document.getElementById('saveZoomLimitsBtn')?.addEventListener('click', () => {
+    const mn = parseFloat(document.getElementById('minZoomInput')?.value);
+    const mx = parseFloat(document.getElementById('maxZoomInput')?.value);
+    if (!isNaN(mn) && mn >= 0.1 && mn < 1) state.minZoom = mn;
+    if (!isNaN(mx) && mx >= 2 && mx <= 30) state.maxZoom = mx;
+    const s = typeof getActiveStudy === 'function' ? getActiveStudy() : null;
+    if (s && typeof clampZoom === 'function') {
+        s.proc.zoom = clampZoom(s.proc.zoom);
+        renderViewport();
+    }
+    if (typeof logAudit === 'function') logAudit('ZOOM_LIMITS', `Min=${state.minZoom}x Max=${state.maxZoom}x`);
+    alert(`تم تحديث حدود التكبير: ${state.minZoom}x إلى ${state.maxZoom}x`);
+});
+
+// Keyboard Shortcuts
+document.addEventListener('keydown', e => {
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
+    const k = e.key.toLowerCase();
+
+    if (e.ctrlKey && k === 'z') { e.preventDefault(); document.getElementById('undoBtn')?.click(); }
+    else if (e.ctrlKey && k === 'y') { e.preventDefault(); document.getElementById('redoBtn')?.click(); }
+    else if (k === '+' || k === '=') { e.preventDefault(); if (typeof smoothZoomByFactor === 'function') smoothZoomByFactor(1.3); }
+    else if (k === '-' || k === '_') { e.preventDefault(); if (typeof smoothZoomByFactor === 'function') smoothZoomByFactor(1 / 1.3); }
+    else if (k === '0') { e.preventDefault(); if (typeof fitToScreen === 'function') fitToScreen(true); }
+    else if (k === '1') { e.preventDefault(); if (typeof zoomToActualSize === 'function') zoomToActualSize(); }
+    else if (k === 'p' && typeof setTool === 'function') setTool('pan');
+    else if (k === 'w' && typeof setTool === 'function') setTool('wl');
+    else if (k === 'm' && typeof setTool === 'function') setTool('dist');
+    else if (k === 'a' && typeof setTool === 'function') setTool('angle');
+    else if (k === 'i') document.getElementById('invertQuickBtn')?.click();
+    else if (k === 'r') document.getElementById('resetViewBtn')?.click();
+    else if (k === 'f') document.getElementById('fullscreenBtn')?.click();
+    else if ((k === 'delete' || k === 'backspace') && typeof deleteSelectedAnnotation === 'function') {
+        e.preventDefault();
+        deleteSelectedAnnotation();
+    } else if (k === 'arrowright' && state.studies.length > 1 && typeof selectStudy === 'function') {
+        selectStudy((state.activeIdx + 1) % state.studies.length);
+    } else if (k === 'arrowleft' && state.studies.length > 1 && typeof selectStudy === 'function') {
+        selectStudy((state.activeIdx - 1 + state.studies.length) % state.studies.length);
+    }
+});
+
+// Metadata / Protocol Header Sync
+['modalitySelect', 'sideSelect', 'profileSelect', 'viewSelect', 'projectionSelect', 'positionSelect'].forEach(id => {
+    document.getElementById(id)?.addEventListener('change', () => {
+        if (typeof autoSelectTemplate === 'function') autoSelectTemplate();
+        if (typeof updateReportExamHeader === 'function') updateReportExamHeader();
+    });
+});
+
+// Safe Boot Sequence
+if (typeof initAnatomyUI === 'function') initAnatomyUI();
+if (typeof loadWatermarkPrefs === 'function') loadWatermarkPrefs();
+document.getElementById('applyTemplateBtn')?.click();
+if (typeof resizeCanvas === 'function') resizeCanvas();
+if (typeof logAudit === 'function') logAudit('SESSION_START', 'RamyRay AI Studio initialized');
+</script>
+</body>
+</html>
